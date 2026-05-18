@@ -140,8 +140,21 @@ export default function CrearWizard() {
 
       router.push(`/rollo/${result.code}/admin?key=${result.admin_token}`);
     } catch (err) {
+      // Supabase PostgrestError is a plain object (not an Error instance), so
+      // surface its message/code/details/hint explicitly instead of falling
+      // through to the generic "no pudimos crear" string that hides the cause.
       console.error('[crear] submit failed', err);
-      setError(err instanceof Error ? err.message : 'No pudimos crear el rollo. Intenta de nuevo.');
+      let msg = 'No pudimos crear el rollo. Intenta de nuevo.';
+      if (err && typeof err === 'object') {
+        const e = err as { message?: string; code?: string; details?: string; hint?: string };
+        if (e.message) {
+          msg = e.code ? `${e.code}: ${e.message}` : e.message;
+          if (e.hint) msg += ` (${e.hint})`;
+        }
+      } else if (err instanceof Error) {
+        msg = err.message;
+      }
+      setError(msg);
       setSubmitting(false);
     }
   }
