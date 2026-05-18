@@ -519,8 +519,4 @@ async function downloadSingleWithFilter(p: GalleryPhoto): Promise<void> {
     console.error('[Gallery] download with filter failed', err);
   }
 }
- catch (err) {
-    console.error('[Gallery] download with filter failed', err);
-  }
-}
 
