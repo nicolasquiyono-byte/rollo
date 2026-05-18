@@ -64,11 +64,7 @@ export function JoinHero({ rollo }: Props) {
   }
 
   function handleJoin() {
-    if (storedName) {
-      void register(storedName);
-    } else {
-      setShowSheet(true);
-    }
+    setShowSheet(true);
   }
 
   function handleNameSubmit(e: React.FormEvent) {
