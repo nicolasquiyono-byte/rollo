@@ -479,9 +479,12 @@ function Lightbox({
 
 async function downloadSingleWithFilter(p: GalleryPhoto): Promise<void> {
   try {
+console.log('[Download] Starting download with filter:', p.filter);
+
     // All downloads go through canvas so the digital timestamp watermark is
     // burned in (even for filter='original' which would otherwise skip canvas).
     const blob = await bakeFilterToBlob(p.url, p.filter, p.id, p.takenAt);
+console.log('[Download] Blob created, size:', blob.size);
     const objectUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = objectUrl;
