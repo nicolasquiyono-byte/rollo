@@ -479,12 +479,34 @@ function Lightbox({
 
 async function downloadSingleWithFilter(p: GalleryPhoto): Promise<void> {
   try {
-console.log('[Download] Starting download with filter:', p.filter);
-
-    // All downloads go through canvas so the digital timestamp watermark is
-    // burned in (even for filter='original' which would otherwise skip canvas).
+    console.log('[Download] Starting download with filter:', p.filter);
     const blob = await bakeFilterToBlob(p.url, p.filter, p.id, p.takenAt);
-console.log('[Download] Blob created, size:', blob.size);
+    console.log('[Download] Blob created, size:', blob.size);
+    
+    // En móvil, usa Web Share API para guardar directo a Fotos
+    if (navigator.share && navigator.canShare) {
+      const file = new File([blob], `rollo-${p.id}.jpg`, { type: 'image/jpeg' });
+      
+      if (navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: 'Rollo Photo',
+          });
+          console.log('[Download] Shared successfully via Web Share API');
+          return;
+        } catch (shareErr) {
+          // Si el usuario cancela el share, continuar con download normal
+          if ((shareErr as Error).name !== 'AbortError') {
+            console.warn('[Download] Web Share failed, falling back to download', shareErr);
+          } else {
+            return; // Usuario canceló, no hacer nada más
+          }
+        }
+      }
+    }
+    
+    // Fallback: download tradicional para desktop
     const objectUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = objectUrl;
@@ -494,6 +516,10 @@ console.log('[Download] Blob created, size:', blob.size);
     a.remove();
     URL.revokeObjectURL(objectUrl);
   } catch (err) {
+    console.error('[Gallery] download with filter failed', err);
+  }
+}
+ catch (err) {
     console.error('[Gallery] download with filter failed', err);
   }
 }
