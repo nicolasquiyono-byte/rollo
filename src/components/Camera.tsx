@@ -1,24 +1,26 @@
-// Camera.tsx - Versión corregida sin errores de TypeScript
+// Camera.tsx - Versión corregida que devuelve blob en lugar de string
 
 import { useRef, useEffect, useState } from 'react';
 
 interface CameraProps {
-  isFrontCamera: boolean;
-  onCapture?: (imageData: string) => void;
+  facing?: 'user' | 'environment';
+  disabled?: boolean;
+  onCapture?: (data: { blob: Blob; width: number; height: number }) => void;
 }
 
-export default function Camera({ isFrontCamera, onCapture }: CameraProps) {
+export default function Camera({ facing = 'environment', disabled = false, onCapture }: CameraProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const isFrontCamera = facing === 'user';
 
   useEffect(() => {
     startCamera();
     return () => {
       stopCamera();
     };
-  }, [isFrontCamera]);
+  }, [facing]);
 
   const startCamera = async () => {
     try {
@@ -29,7 +31,7 @@ export default function Camera({ isFrontCamera, onCapture }: CameraProps) {
         stream.getTracks().forEach(track => track.stop());
       }
 
-      // Configuración base de constraints (SIN advanced para evitar error TypeScript)
+      // Configuración base de constraints
       const constraints: MediaStreamConstraints = {
         video: {
           facingMode: isFrontCamera ? 'user' : 'environment',
@@ -67,7 +69,6 @@ export default function Camera({ isFrontCamera, onCapture }: CameraProps) {
     } catch (error) {
       console.error('Error al acceder a la cámara:', error);
       setIsLoading(false);
-      alert('No se pudo acceder a la cámara. Verifica los permisos.');
     }
   };
 
@@ -78,8 +79,8 @@ export default function Camera({ isFrontCamera, onCapture }: CameraProps) {
     }
   };
 
-  const capturePhoto = () => {
-    if (!videoRef.current || !canvasRef.current) return;
+  const capturePhoto = async () => {
+    if (!videoRef.current || !canvasRef.current || disabled) return;
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -88,20 +89,23 @@ export default function Camera({ isFrontCamera, onCapture }: CameraProps) {
     if (!context) return;
 
     // Establecer dimensiones del canvas
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+    canvas.width = width;
+    canvas.height = height;
 
     // Dibujar el frame actual del video
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    context.drawImage(video, 0, 0, width, height);
 
-    // Convertir a imagen
-    const imageData = canvas.toDataURL('image/jpeg', 0.95);
-    
-    if (onCapture) {
-      onCapture(imageData);
-    }
-
-    return imageData;
+    // Convertir a blob en lugar de base64
+    return new Promise<void>((resolve) => {
+      canvas.toBlob((blob) => {
+        if (blob && onCapture) {
+          onCapture({ blob, width, height });
+        }
+        resolve();
+      }, 'image/jpeg', 0.95);
+    });
   };
 
   return (
@@ -133,7 +137,7 @@ export default function Camera({ isFrontCamera, onCapture }: CameraProps) {
       <button
         onClick={capturePhoto}
         className="capture-button"
-        disabled={isLoading}
+        disabled={disabled || isLoading}
       >
         📸 Capturar
       </button>
