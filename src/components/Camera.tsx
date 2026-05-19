@@ -28,14 +28,14 @@ export default function Camera({ facing = 'environment', disabled = false, onCap
         stream.getTracks().forEach(track => track.stop());
       }
 
-      // Configuración optimizada - sin zoom excesivo
+      // Configuración optimizada - campo de visión más amplio
       const constraints: MediaStreamConstraints = {
         video: {
           facingMode: isFrontCamera ? 'user' : 'environment',
-          // Aspect ratio flexible para evitar crop/zoom
-          aspectRatio: { ideal: 9 / 16 },
-          width: { ideal: 1080, max: 1920 },
-          height: { ideal: 1920, max: 3840 }
+          // Resolución más baja = menos zoom
+          width: { ideal: 640, max: 1280 },
+          height: { ideal: 480, max: 960 },
+          aspectRatio: { ideal: 4 / 3 }
         } as MediaTrackConstraints,
         audio: false
       };
