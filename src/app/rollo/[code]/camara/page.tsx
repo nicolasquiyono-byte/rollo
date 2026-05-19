@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { X, QrCode, RotateCw, Film } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { Camera } from '@/components/Camera';
+import Camera from '@/components/Camera';
 import { QRCodeView } from '@/components/QRCode';
 import { getDeviceId, getGuestName } from '@/lib/utils/device';
 import { enqueuePhoto, listPending, removePending } from '@/lib/utils/offline-queue';
