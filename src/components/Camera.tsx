@@ -1,19 +1,32 @@
-// Camera.tsx - Con botón circular blanco original
+// Camera.tsx v2 - Con aplicación de filtro al capturar
 
 import { useRef, useEffect, useState } from 'react';
+import { bakeFilterToBlob, filterCss } from '@/lib/utils/filter-css';
+import type { FilterType } from '@/types';
 
 interface CameraProps {
   facing?: 'user' | 'environment';
   disabled?: boolean;
+  filter?: FilterType;
+  photoId?: string;
+  takenAt?: string;
   onCapture?: (data: { blob: Blob; width: number; height: number }) => void;
 }
 
-export default function Camera({ facing = 'environment', disabled = false, onCapture }: CameraProps) {
+export default function Camera({ 
+  facing = 'environment', 
+  disabled = false, 
+  filter = 'original',
+  photoId,
+  takenAt,
+  onCapture 
+}: CameraProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [capturedData, setCapturedData] = useState<{ blob: Blob; width: number; height: number } | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const isFrontCamera = facing === 'user';
 
   useEffect(() => {
@@ -76,51 +89,84 @@ export default function Camera({ facing = 'environment', disabled = false, onCap
   };
 
   const capturePhoto = async () => {
-    if (!videoRef.current || !canvasRef.current || disabled) return;
+    if (!videoRef.current || !canvasRef.current || disabled || isProcessing) return;
 
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const context = canvas.getContext('2d');
+    setIsProcessing(true);
 
-    if (!context) return;
+    try {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      const context = canvas.getContext('2d');
 
-    const width = video.videoWidth;
-    const height = video.videoHeight;
-    canvas.width = width;
-    canvas.height = height;
+      if (!context) return;
 
-    context.drawImage(video, 0, 0, width, height);
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+      canvas.width = width;
+      canvas.height = height;
 
-    // Guardar preview y datos
-    const imageDataUrl = canvas.toDataURL('image/jpeg', 0.95);
-    setCapturedImage(imageDataUrl);
+      // Capturar imagen sin filtro primero
+      context.drawImage(video, 0, 0, width, height);
 
-    return new Promise<void>((resolve) => {
-      canvas.toBlob((blob) => {
-        if (blob) {
-          setCapturedData({ blob, width, height });
-        }
-        resolve();
-      }, 'image/jpeg', 0.95);
-    });
+      // Crear blob sin filtro
+      const originalBlob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error('Failed to create blob'));
+        }, 'image/jpeg', 0.95);
+      });
+
+      // Crear URL temporal para la imagen original
+      const originalUrl = URL.createObjectURL(originalBlob);
+
+      // Aplicar filtro usando bakeFilterToBlob (igual que en descargas)
+      const filteredBlob = await bakeFilterToBlob(
+        originalUrl,
+        filter,
+        photoId,
+        takenAt,
+        0.95
+      );
+
+      // Limpiar URL temporal
+      URL.revokeObjectURL(originalUrl);
+
+      // Crear preview con filtro aplicado
+      const previewUrl = URL.createObjectURL(filteredBlob);
+      setCapturedImage(previewUrl);
+      setCapturedData({ blob: filteredBlob, width, height });
+
+    } catch (error) {
+      console.error('[Camera] Error al capturar:', error);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const confirmPhoto = () => {
     if (capturedData && onCapture) {
       onCapture(capturedData);
     }
+    // Limpiar preview URL
+    if (capturedImage) {
+      URL.revokeObjectURL(capturedImage);
+    }
     setCapturedImage(null);
     setCapturedData(null);
   };
 
   const retakePhoto = () => {
+    // Limpiar preview URL
+    if (capturedImage) {
+      URL.revokeObjectURL(capturedImage);
+    }
     setCapturedImage(null);
     setCapturedData(null);
   };
 
   return (
     <>
-      {/* Video stream */}
+      {/* Video stream con filtro aplicado en tiempo real */}
       <video
         ref={videoRef}
         autoPlay
@@ -129,7 +175,8 @@ export default function Camera({ facing = 'environment', disabled = false, onCap
         className="absolute inset-0 h-full w-full object-cover"
         style={{
           transform: isFrontCamera ? 'scaleX(-1)' : 'none',
-          display: capturedImage ? 'none' : 'block'
+          display: capturedImage ? 'none' : 'block',
+          filter: filterCss(filter, photoId)
         }}
       />
       
@@ -181,13 +228,19 @@ export default function Camera({ facing = 'environment', disabled = false, onCap
       {!capturedImage && (
         <button
           onClick={capturePhoto}
-          disabled={disabled}
+          disabled={disabled || isProcessing}
           aria-label="Tomar foto"
           className="absolute left-1/2 z-20 h-[70px] w-[70px] -translate-x-1/2 rounded-full border-4 border-white bg-white shadow-lg shadow-black/40 transition-all duration-150 active:scale-90 active:border-[6px] disabled:opacity-50"
           style={{
             bottom: 'max(env(safe-area-inset-bottom, 0px) + 30px, 30px)'
           }}
-        />
+        >
+          {isProcessing && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-black border-t-transparent" />
+            </div>
+          )}
+        </button>
       )}
     </>
   );
