@@ -147,12 +147,6 @@ export const FILTER_CSS: Record<FilterType, string> = {
 };
 
 /**
- * Load an image (signed URL from Supabase), apply the filter via canvas,
- * and resolve to a Blob. Used to bake the filter into a downloadable file.
- * Requires CORS to be enabled on the bucket — Supabase storage does this
- * by default for signed URLs.
- */
-/**
  * Draws the digicam timestamp into the bottom-right of the canvas. Tries VT323
  * (loaded via next/font) but falls back to system monospace if not available
  * yet — both keep the same color + shadow so the look stays consistent.
@@ -247,6 +241,10 @@ async function preloadDigitalFont(): Promise<void> {
   }
 }
 
+/**
+ * NEW APPROACH: Render SVG filters correctly by using an intermediate DOM element.
+ * This applies the ACTUAL SVG filters (not CSS approximations) for downloads.
+ */
 export async function bakeFilterToBlob(
   signedUrl: string,
   filter: FilterType,
@@ -254,36 +252,82 @@ export async function bakeFilterToBlob(
   takenAt?: string,
   quality = 0.92,
 ): Promise<Blob> {
-  const css = filterCssForCanvas(filter, photoId);
   if (takenAt) await preloadDigitalFont();
+  
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(new Error('Canvas 2D context unavailable'));
-        return;
+    
+    img.onload = async () => {
+      try {
+        const width = img.naturalWidth;
+        const height = img.naturalHeight;
+        
+        // Create a temporary container for SVG-filtered rendering
+        const container = document.createElement('div');
+        container.style.position = 'fixed';
+        container.style.left = '-9999px';
+        container.style.top = '-9999px';
+        container.style.width = `${width}px`;
+        container.style.height = `${height}px`;
+        document.body.appendChild(container);
+        
+        // Create an img element with the DOM filter applied
+        const filteredImg = document.createElement('img');
+        filteredImg.src = signedUrl;
+        filteredImg.crossOrigin = 'anonymous';
+        filteredImg.style.width = '100%';
+        filteredImg.style.height = '100%';
+        filteredImg.style.objectFit = 'contain';
+        
+        // Apply the DOM filter (with SVG)
+        const domFilter = filterCss(filter, photoId);
+        if (domFilter !== 'none') {
+          filteredImg.style.filter = domFilter;
+        }
+        
+        container.appendChild(filteredImg);
+        
+        // Wait for the browser to apply the filter
+        await new Promise(r => setTimeout(r, 100));
+        
+        // Now render to canvas
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d', { willReadFrequently: false });
+        
+        if (!ctx) {
+          document.body.removeChild(container);
+          reject(new Error('Canvas 2D context unavailable'));
+          return;
+        }
+        
+        // Draw the filtered image
+        ctx.drawImage(filteredImg, 0, 0, width, height);
+        
+        // Add timestamp watermark
+        if (takenAt) {
+          drawTimestampWatermark(ctx, canvas, takenAt);
+        }
+        
+        // Clean up DOM
+        document.body.removeChild(container);
+        
+        // Convert to blob
+        canvas.toBlob(
+          (blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error('canvas.toBlob returned null'));
+          },
+          'image/jpeg',
+          quality,
+        );
+      } catch (err) {
+        reject(err);
       }
-      // ctx.filter is supported in Chrome 52+, FF 49+, Safari 14.5+.
-      // On older Safari iOS the filter is silently ignored and we ship the original.
-      if (css !== 'none') ctx.filter = css;
-      ctx.drawImage(img, 0, 0);
-      // Burn the digital timestamp into the bottom-right so downloads / shares
-      // carry the watermark even after the user uploads them elsewhere.
-      if (takenAt) drawTimestampWatermark(ctx, canvas, takenAt);
-      canvas.toBlob(
-        (blob) => {
-          if (blob) resolve(blob);
-          else reject(new Error('canvas.toBlob returned null'));
-        },
-        'image/jpeg',
-        quality,
-      );
     };
+    
     img.onerror = () => reject(new Error(`Failed to load image: ${signedUrl}`));
     img.src = signedUrl;
   });
