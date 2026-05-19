@@ -1,4 +1,4 @@
-// Camera.tsx - Versión corregida que devuelve blob en lugar de string
+// Camera.tsx - Con botón circular blanco original
 
 import { useRef, useEffect, useState } from 'react';
 
@@ -12,7 +12,6 @@ export default function Camera({ facing = 'environment', disabled = false, onCap
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const isFrontCamera = facing === 'user';
 
   useEffect(() => {
@@ -24,38 +23,36 @@ export default function Camera({ facing = 'environment', disabled = false, onCap
 
   const startCamera = async () => {
     try {
-      setIsLoading(true);
-      
       // Detener stream anterior si existe
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
       }
 
-      // Configuración base de constraints
+      // Configuración optimizada - sin zoom excesivo
       const constraints: MediaStreamConstraints = {
         video: {
           facingMode: isFrontCamera ? 'user' : 'environment',
-          width: { ideal: 1080 },
-          height: { ideal: 1920 }
+          // Aspect ratio flexible para evitar crop/zoom
+          aspectRatio: { ideal: 9 / 16 },
+          width: { ideal: 1080, max: 1920 },
+          height: { ideal: 1920, max: 3840 }
         } as MediaTrackConstraints,
         audio: false
       };
 
       const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
       
-      // DESPUÉS de obtener el stream, aplicar configuración de estabilización
+      // Desactivar estabilización en modo selfie para evitar giro excesivo
       if (isFrontCamera) {
         const videoTrack = mediaStream.getVideoTracks()[0];
         
-        // Intentar desactivar estabilización (solo funciona en algunos navegadores)
         try {
           await videoTrack.applyConstraints({
-            // @ts-ignore - imageStabilization existe pero no está en los tipos de TS
+            // @ts-ignore - imageStabilization existe pero no está en tipos
             advanced: [{ imageStabilization: false }]
           });
-          console.log('Estabilización desactivada');
         } catch (e) {
-          console.log('Estabilización no soportada en este navegador');
+          // Ignorar si no está soportado
         }
       }
 
@@ -64,11 +61,8 @@ export default function Camera({ facing = 'environment', disabled = false, onCap
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
       }
-      
-      setIsLoading(false);
     } catch (error) {
-      console.error('Error al acceder a la cámara:', error);
-      setIsLoading(false);
+      console.error('[Camera] Error:', error);
     }
   };
 
@@ -88,16 +82,13 @@ export default function Camera({ facing = 'environment', disabled = false, onCap
 
     if (!context) return;
 
-    // Establecer dimensiones del canvas
     const width = video.videoWidth;
     const height = video.videoHeight;
     canvas.width = width;
     canvas.height = height;
 
-    // Dibujar el frame actual del video
     context.drawImage(video, 0, 0, width, height);
 
-    // Convertir a blob en lugar de base64
     return new Promise<void>((resolve) => {
       canvas.toBlob((blob) => {
         if (blob && onCapture) {
@@ -109,81 +100,35 @@ export default function Camera({ facing = 'environment', disabled = false, onCap
   };
 
   return (
-    <div className="camera-container">
-      {isLoading && (
-        <div className="loading">
-          <p>Cargando cámara...</p>
-        </div>
-      )}
-      
+    <>
+      {/* Video stream */}
       <video
         ref={videoRef}
         autoPlay
         playsInline
         muted
+        className="absolute inset-0 h-full w-full object-cover"
         style={{
-          width: '100%',
-          height: '100%',
-          objectFit: 'cover',
           transform: isFrontCamera ? 'scaleX(-1)' : 'none'
         }}
       />
       
+      {/* Canvas oculto para captura */}
       <canvas
         ref={canvasRef}
         style={{ display: 'none' }}
       />
 
+      {/* Botón de captura circular blanco - centrado abajo */}
       <button
         onClick={capturePhoto}
-        className="capture-button"
-        disabled={disabled || isLoading}
-      >
-        📸 Capturar
-      </button>
-
-      <style jsx>{`
-        .camera-container {
-          position: relative;
-          width: 100%;
-          height: 100vh;
-          background: #000;
-        }
-
-        .loading {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          color: white;
-          text-align: center;
-          z-index: 10;
-        }
-
-        .capture-button {
-          position: absolute;
-          bottom: 40px;
-          left: 50%;
-          transform: translateX(-50%);
-          padding: 15px 30px;
-          font-size: 18px;
-          background: white;
-          border: none;
-          border-radius: 50px;
-          cursor: pointer;
-          z-index: 5;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-        }
-
-        .capture-button:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        .capture-button:hover:not(:disabled) {
-          background: #f0f0f0;
-        }
-      `}</style>
-    </div>
+        disabled={disabled}
+        aria-label="Tomar foto"
+        className="absolute left-1/2 z-20 h-[70px] w-[70px] -translate-x-1/2 rounded-full border-4 border-white bg-white shadow-lg shadow-black/40 transition active:scale-95 disabled:opacity-50"
+        style={{
+          bottom: 'max(env(safe-area-inset-bottom, 0px) + 30px, 30px)'
+        }}
+      />
+    </>
   );
 }
