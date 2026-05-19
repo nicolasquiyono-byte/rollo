@@ -12,6 +12,8 @@ export default function Camera({ facing = 'environment', disabled = false, onCap
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [capturedData, setCapturedData] = useState<{ blob: Blob; width: number; height: number } | null>(null);
   const isFrontCamera = facing === 'user';
 
   useEffect(() => {
@@ -89,14 +91,31 @@ export default function Camera({ facing = 'environment', disabled = false, onCap
 
     context.drawImage(video, 0, 0, width, height);
 
+    // Guardar preview y datos
+    const imageDataUrl = canvas.toDataURL('image/jpeg', 0.95);
+    setCapturedImage(imageDataUrl);
+
     return new Promise<void>((resolve) => {
       canvas.toBlob((blob) => {
-        if (blob && onCapture) {
-          onCapture({ blob, width, height });
+        if (blob) {
+          setCapturedData({ blob, width, height });
         }
         resolve();
       }, 'image/jpeg', 0.95);
     });
+  };
+
+  const confirmPhoto = () => {
+    if (capturedData && onCapture) {
+      onCapture(capturedData);
+    }
+    setCapturedImage(null);
+    setCapturedData(null);
+  };
+
+  const retakePhoto = () => {
+    setCapturedImage(null);
+    setCapturedData(null);
   };
 
   return (
@@ -109,7 +128,8 @@ export default function Camera({ facing = 'environment', disabled = false, onCap
         muted
         className="absolute inset-0 h-full w-full object-cover"
         style={{
-          transform: isFrontCamera ? 'scaleX(-1)' : 'none'
+          transform: isFrontCamera ? 'scaleX(-1)' : 'none',
+          display: capturedImage ? 'none' : 'block'
         }}
       />
       
@@ -119,16 +139,56 @@ export default function Camera({ facing = 'environment', disabled = false, onCap
         style={{ display: 'none' }}
       />
 
-      {/* Botón de captura circular blanco - centrado abajo */}
-      <button
-        onClick={capturePhoto}
-        disabled={disabled}
-        aria-label="Tomar foto"
-        className="absolute left-1/2 z-20 h-[70px] w-[70px] -translate-x-1/2 rounded-full border-4 border-white bg-white shadow-lg shadow-black/40 transition active:scale-95 disabled:opacity-50"
-        style={{
-          bottom: 'max(env(safe-area-inset-bottom, 0px) + 30px, 30px)'
-        }}
-      />
+      {/* Preview de foto capturada */}
+      {capturedImage && (
+        <div className="absolute inset-0 z-30 bg-black">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img 
+            src={capturedImage} 
+            alt="Preview"
+            className="h-full w-full object-cover"
+            style={{
+              transform: isFrontCamera ? 'scaleX(-1)' : 'none'
+            }}
+          />
+          
+          {/* Botones de confirmación */}
+          <div className="absolute inset-x-0 flex justify-center gap-4" style={{
+            bottom: 'max(env(safe-area-inset-bottom, 0px) + 30px, 30px)'
+          }}>
+            {/* Tomar otra */}
+            <button
+              onClick={retakePhoto}
+              className="flex h-14 items-center gap-2 rounded-full bg-white/20 px-6 text-white backdrop-blur-lg transition active:scale-95"
+            >
+              <span className="text-2xl">↻</span>
+              <span className="font-medium">Tomar otra</span>
+            </button>
+            
+            {/* Usar esta foto */}
+            <button
+              onClick={confirmPhoto}
+              className="flex h-14 items-center gap-2 rounded-full bg-white px-6 text-black transition active:scale-95"
+            >
+              <span className="text-2xl">✓</span>
+              <span className="font-medium">Usar esta foto</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Botón de captura circular blanco - con animación */}
+      {!capturedImage && (
+        <button
+          onClick={capturePhoto}
+          disabled={disabled}
+          aria-label="Tomar foto"
+          className="absolute left-1/2 z-20 h-[70px] w-[70px] -translate-x-1/2 rounded-full border-4 border-white bg-white shadow-lg shadow-black/40 transition-all duration-150 active:scale-90 active:border-[6px] disabled:opacity-50"
+          style={{
+            bottom: 'max(env(safe-area-inset-bottom, 0px) + 30px, 30px)'
+          }}
+        />
+      )}
     </>
   );
 }
