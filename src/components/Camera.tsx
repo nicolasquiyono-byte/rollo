@@ -63,7 +63,16 @@ export function Camera({ disabled, facing, onCapture }: Props) {
     try {
       try {
         stream = await requestStream(
-          { video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1920 } }, audio: false },
+          { 
+            video: { 
+              facingMode: facing, 
+              width: { ideal: 1920 }, 
+              height: { ideal: 1920 },
+              // Deshabilitar estabilización de imagen en iOS
+              advanced: [{ imageStabilization: false }]
+            }, 
+            audio: false 
+          },
           `facingMode=${facing}`,
         );
       } catch (firstErr) {
@@ -228,6 +237,9 @@ export function Camera({ disabled, facing, onCapture }: Props) {
         playsInline
         muted
         className={`h-full w-full object-cover ${preview ? 'invisible' : ''}`}
+        style={{
+          transform: facing === 'user' ? 'scaleX(-1)' : 'none',
+        }}
       />
       {preview && (
         // eslint-disable-next-line @next/next/no-img-element
