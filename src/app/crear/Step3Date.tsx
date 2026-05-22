@@ -40,15 +40,15 @@ export function Step3Date({ endsAt, onChange }: Props) {
   const isValid = new Date(endsAt).getTime() > Date.now();
 
   return (
-    <div className="flex flex-col items-center text-center animate-fade-in">
+    <div className="mx-auto flex w-full max-w-md flex-col items-center text-center animate-fade-in">
       <h1 className="font-display text-3xl leading-tight md:text-4xl">
         ¿Cuándo termina tu evento?
       </h1>
-      <p className="mt-3 max-w-md text-sm text-white/60">
+      <p className="mt-3 text-sm text-white/60">
         El rollo abre ahora; los invitados podrán tomar fotos hasta el cierre.
       </p>
 
-      <div className="mt-10 w-full max-w-md">
+      <div className="mt-10 w-full">
         <input
           type="datetime-local"
           value={localValue}
@@ -72,7 +72,7 @@ export function Step3Date({ endsAt, onChange }: Props) {
         )}
       </div>
 
-      <div className="mt-6 flex gap-2 text-xs text-white/60">
+      <div className="mt-6 flex flex-wrap justify-center gap-2 text-xs text-white/60">
         {[2, 6, 12, 24, 48].map((h) => (
           <button
             key={h}

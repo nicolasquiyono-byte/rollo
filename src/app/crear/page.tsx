@@ -178,6 +178,8 @@ export default function CrearWizard() {
       style={{
         paddingTop: 'max(env(safe-area-inset-top), 16px)',
         paddingBottom: 'max(env(safe-area-inset-bottom), 16px)',
+        paddingLeft: 'env(safe-area-inset-left)',
+        paddingRight: 'env(safe-area-inset-right)',
       }}
     >
       <header className="flex items-center justify-between px-5 py-2">
