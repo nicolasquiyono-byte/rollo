@@ -48,7 +48,7 @@ export function Step3Date({ endsAt, onChange }: Props) {
         El rollo abre ahora; los invitados podrán tomar fotos hasta el cierre.
       </p>
 
-      <div className="mt-10 w-full">
+      <div className="mt-10 flex w-full flex-col items-center">
         <input
           type="datetime-local"
           value={localValue}
@@ -57,7 +57,7 @@ export function Step3Date({ endsAt, onChange }: Props) {
             if (!e.target.value) return;
             onChange(localInputToIso(e.target.value));
           }}
-          className="w-full rounded-2xl border border-white/15 bg-white/5 px-5 py-4 text-center text-lg outline-none transition focus:border-white/40 [color-scheme:dark]"
+          className="block w-fit max-w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-center text-base outline-none transition focus:border-white/40 [color-scheme:dark]"
         />
 
         <p
