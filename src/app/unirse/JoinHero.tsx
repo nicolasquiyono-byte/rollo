@@ -142,31 +142,43 @@ export function JoinHero({ rollo }: Props) {
         >
           {error && <p className="text-center text-xs text-rollo-accent">{error}</p>}
 
-          <button
-            onClick={handleJoin}
-            disabled={submitting || closed}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white py-4 text-base font-medium text-black shadow-lg shadow-black/20 transition active:scale-[0.99] disabled:opacity-50"
-          >
-            <span>Abrir en la app</span>
-            <ArrowUpRightIcon />
-          </button>
-
-          <button
-            onClick={handleJoin}
-            disabled={submitting || closed}
-            className="w-full rounded-2xl border border-white/30 py-4 text-base font-medium text-white transition active:scale-[0.99] hover:bg-white/5 disabled:opacity-50"
-          >
-            {submitting ? 'Entrando…' : closed ? 'Rollo cerrado' : 'Continuar en navegador'}
-          </button>
-
-          <p className="pt-1 text-center text-xs text-white/50">
+          {closed ? (
             <button
-              onClick={handleJoin}
-              className="underline underline-offset-2 transition hover:text-white/80"
+              onClick={() => router.push(`/rollo/${rollo.code}/galeria`)}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white py-4 text-base font-medium text-black shadow-lg shadow-black/20 transition active:scale-[0.99]"
             >
-              ¿Ya tienes la app? Ábrela directo
+              <span>Ver tu rollo</span>
+              <ArrowUpRightIcon />
             </button>
-          </p>
+          ) : (
+            <>
+              <button
+                onClick={handleJoin}
+                disabled={submitting}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white py-4 text-base font-medium text-black shadow-lg shadow-black/20 transition active:scale-[0.99] disabled:opacity-50"
+              >
+                <span>Abrir en la app</span>
+                <ArrowUpRightIcon />
+              </button>
+
+              <button
+                onClick={handleJoin}
+                disabled={submitting}
+                className="w-full rounded-2xl border border-white/30 py-4 text-base font-medium text-white transition active:scale-[0.99] hover:bg-white/5 disabled:opacity-50"
+              >
+                {submitting ? 'Entrando…' : 'Continuar en navegador'}
+              </button>
+
+              <p className="pt-1 text-center text-xs text-white/50">
+                <button
+                  onClick={handleJoin}
+                  className="underline underline-offset-2 transition hover:text-white/80"
+                >
+                  ¿Ya tienes la app? Ábrela directo
+                </button>
+              </p>
+            </>
+          )}
         </footer>
       </div>
 

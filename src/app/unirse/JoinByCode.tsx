@@ -41,8 +41,10 @@ export function JoinByCode({ initialCode = '', initialError }: Props) {
         setError(es.join.not_found);
         return;
       }
+      // If the rollo is already closed, skip the camera flow and send the
+      // user straight to the gallery to view the photos.
       if (new Date(rollo.closes_at) < new Date()) {
-        setError(es.join.closed);
+        router.push(`/rollo/${normalized}/galeria`);
         return;
       }
       const deviceId = getDeviceId();
