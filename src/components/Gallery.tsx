@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Lock } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { bakeFilterToBlob, filterCss } from '@/lib/utils/filter-css';
@@ -427,6 +427,40 @@ function Lightbox({
   onNext: () => void;
 }) {
   const current = photos[activeIndex];
+  // Track the touch starting point so the touchend handler can decide whether
+  // the gesture was a real horizontal swipe (vs. a tap or vertical scroll).
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+
+  // Keyboard navigation: left/right arrows + Escape (desktop niceness).
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'ArrowLeft') onPrev();
+      else if (e.key === 'ArrowRight') onNext();
+      else if (e.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [onPrev, onNext, onClose]);
+
+  function handleTouchStart(e: React.TouchEvent) {
+    const t = e.touches[0];
+    touchStart.current = { x: t.clientX, y: t.clientY };
+  }
+
+  function handleTouchEnd(e: React.TouchEvent) {
+    if (!touchStart.current) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStart.current.x;
+    const dy = t.clientY - touchStart.current.y;
+    touchStart.current = null;
+    // Require ≥50px of horizontal travel AND that horizontal dominates vertical
+    // by 1.5×, so a vertical scroll/pull-to-close doesn't trigger a swipe.
+    if (Math.abs(dx) >= 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      if (dx < 0) onNext();
+      else onPrev();
+    }
+  }
+
   if (!current) return null;
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black/95" onClick={onClose} role="dialog">
@@ -448,7 +482,12 @@ function Lightbox({
         </button>
       </div>
 
-      <div className="flex flex-1 items-center justify-center px-4" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="flex flex-1 items-center justify-center px-4 touch-pan-y select-none"
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
         <button onClick={onPrev} className="px-3 text-rollo-ink/60 hover:text-rollo-ink" aria-label="anterior">
           ‹
         </button>
@@ -456,6 +495,7 @@ function Lightbox({
         <img
           src={current.url}
           alt=""
+          draggable={false}
           className="max-h-full max-w-full object-contain"
           style={{ filter: filterCss(current.filter, current.id) }}
         />
