@@ -12,9 +12,9 @@ const COOL_CCD_MATRIX = [
   0,    0,    0,    1, 0,
 ];
 const RETRO_TONE_MATRIX = [
-  1.20, 0,    0,    0, 0.05,
-  0,    0.92, 0,    0, 0.05,
-  0,    0,    0.55, 0, 0.10,
+  1.05, 0,    0,    0, 0.08,
+  0,    0.85, 0,    0, 0.03,
+  0,    0,    0.95, 0, 0.05,
   0,    0,    0,    1, 0,
 ];
 const FUJI_TONE_MATRIX = [
@@ -128,10 +128,10 @@ const BW = 'grayscale(1) contrast(1.1)';
 // SVG does: R*1.15-0.08, G*0.95-0.07, B*0.9+0.025
 // This creates: magenta/pink highlights + crushed blue-purple shadows
 // CSS approximation: stronger magenta push + crushed blacks + subtle blue lift
-const RETRO_DOM = 'url(#retro-tone) saturate(1.05) contrast(0.85) brightness(1.08) blur(0.5px)';
+const RETRO_DOM = 'url(#retro-tone) saturate(1.10) contrast(0.95) brightness(1.02) blur(0.3px)';
 // Canvas variant skips the SVG matrix prefix because applyDownloadFilter
 // now bakes RETRO_TONE_MATRIX directly into the pixels before this chain.
-const RETRO_CANVAS = 'saturate(1.05) contrast(0.85) brightness(1.08) blur(0.5px)';
+const RETRO_CANVAS = 'saturate(1.10) contrast(0.95) brightness(1.02) blur(0.3px)';
 
 const SPECIAL_DOM = 'url(#fuji-tone) saturate(0.92) contrast(0.85) brightness(1.04)';
 const SPECIAL_CANVAS = 'saturate(0.88) contrast(0.78) brightness(1.05) sepia(0.08) hue-rotate(-3deg)';

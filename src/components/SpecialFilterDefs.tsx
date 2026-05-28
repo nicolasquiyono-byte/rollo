@@ -80,26 +80,25 @@ export function SpecialFilterDefs() {
           <feBlend in="weakBlur" in2="SourceGraphic" mode="screen" />
         </filter>
 
-        {/* RETRO — 2010 lo-fi heavy yellow wash + magenta shadows
-            Extreme version: blown-out cream-yellow highlights, magenta-
-            pink mids/shadows, faded faux-light-leak feel. Heavy B cut so
-            anything bright drifts to yellow-cream; lifted shadows pick up
-            the R bias and go pink-purple. Greens stay muted (slight cut +
-            lift) for that washed digicam feel.
+        {/* RETRO — 2010 pink/blue sunset wash
+            Pink-magenta cast across most tones with blue preserved in
+            cool areas (sky stays blue, mids/shadows turn pink). G cut
+            hard for the magenta push, B mostly preserved so cool colors
+            don't go yellow/brown. Shadow lifts give the faded film feel.
             Pixel breakdown:
-              Black (0,0,0)        → (0.05, 0.05, 0.10) pink-purple lift
-              Pure blue (0,0,1)    → (0.05, 0.05, 0.65) desaturated dirty teal
-              Mid gray (0.5)       → (0.65, 0.51, 0.38) warm peach mids
-              Skin (0.85,0.7,0.6)  → (1.00, 0.69, 0.43) warm pink-peach
-              White (1,1,1)        → (1.00, 0.97, 0.65) heavy cream-yellow
+              Black (0,0,0)        → (0.08, 0.03, 0.05) pink-purple lift
+              Pure blue (0,0,1)    → (0.08, 0.03, 1.00) preserved deep blue
+              Sky (0.3,0.5,0.9)    → (0.40, 0.46, 0.91) blue-pink gradient
+              Skin (0.85,0.7,0.6)  → (0.97, 0.63, 0.62) pink-peach
+              White (1,1,1)        → (1.00, 0.88, 1.00) pink highlights
         */}
         <filter id="retro-tone" colorInterpolationFilters="sRGB">
           <feColorMatrix
             type="matrix"
             values="
-              1.20 0    0    0    0.05
-              0    0.92 0    0    0.05
-              0    0    0.55 0    0.10
+              1.05 0    0    0    0.08
+              0    0.85 0    0    0.03
+              0    0    0.95 0    0.05
               0    0    0    1    0
             "
           />
