@@ -377,9 +377,9 @@ function Hero({
         <ArrowLeft size={20} />
       </button>
 
-      {/* Title + stats + CTAs. Bigger cover area now (~55% of screen) and
-          everything centred over the photo, matching the reference look. */}
-      <div className="relative z-10 px-5 pb-5 pt-[55vw] text-center sm:pt-72">
+      {/* Title + stats + CTAs. Cover area takes ~65% of the screen above
+          the title; everything centred over the photo. */}
+      <div className="relative z-10 px-5 pb-5 pt-[65vw] text-center sm:pt-80">
         <h1 className="mx-auto font-display text-4xl leading-[1.05] tracking-tight text-white sm:text-5xl">
           {name}
         </h1>
