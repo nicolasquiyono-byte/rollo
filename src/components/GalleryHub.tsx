@@ -53,6 +53,10 @@ export function GalleryHub({
   const [countdown, setCountdown] = useState('');
   const [view, setView] = useState<'all' | 'by-guest'>('all');
   const [selectedGuestId, setSelectedGuestId] = useState<string | null>(null);
+  // Independent fetch of guests + their photo counts so the by-guest tab
+  // shows everyone (even if photo URLs aren't loaded yet because the rollo
+  // is locked, signed-URL creation failed, etc.).
+  const [guestSummaries, setGuestSummaries] = useState<{ id: string; name: string; count: number }[]>([]);
 
   // Live countdown. When locked (delayed-reveal in the future), target the
   // reveal time so the stat matches the top banner; otherwise target the
@@ -152,21 +156,36 @@ export function GalleryHub({
     };
   }, [rolloId, hydrate, supabase]);
 
-  // People count = distinct guests that actually took a photo. Falls back
-  // to the guests table count if there are no photos yet.
+  // Fetch every guest + how many photos they've taken. Runs whenever the
+  // photos list changes (so realtime inserts bump the counts) and powers
+  // both the people-count stat and the by-guest tab — even when no photo
+  // rows are visible (locked rollo, RLS, etc.).
   useEffect(() => {
-    const ids = new Set(photos.map((p) => p.guestId));
-    if (ids.size > 0) {
-      setPeopleCount(ids.size);
-      return;
-    }
     let cancelled = false;
     (async () => {
-      const { count } = await supabase
+      const { data: guests, error } = await supabase
         .from('guests')
-        .select('*', { count: 'exact', head: true })
+        .select('id, name')
         .eq('rollo_id', rolloId);
-      if (!cancelled) setPeopleCount(count ?? 0);
+      if (error || !guests || cancelled) return;
+      // Counts per guest from the photos we already have hydrated. For a
+      // locked rollo without readable photos we'd see 0s; that's fine —
+      // the row count from the unlock-photos policy is already in `photos`
+      // anyway since the SELECT policy is open.
+      const counts = new Map<string, number>();
+      for (const p of photos) {
+        counts.set(p.guestId, (counts.get(p.guestId) ?? 0) + 1);
+      }
+      const summaries = guests.map((g) => ({
+        id: g.id,
+        name: g.name,
+        count: counts.get(g.id) ?? 0,
+      }));
+      // Only count people who've actually taken a photo for the stat; the
+      // by-guest tab shows everyone so the host can see who joined.
+      const active = summaries.filter((s) => s.count > 0).length;
+      setGuestSummaries(summaries);
+      setPeopleCount(active > 0 ? active : guests.length);
     })();
     return () => {
       cancelled = true;
@@ -224,21 +243,29 @@ export function GalleryHub({
               <div key={i} className="aspect-[3/4] animate-pulse rounded-2xl bg-rollo-surface" />
             ))}
           </div>
+        ) : view === 'by-guest' && !selectedGuestId ? (
+          // By-guest tab always shows everyone via guestSummaries (works
+          // even when photo URLs aren't loaded). Falls back to placeholders
+          // only if no guests exist at all.
+          guestSummaries.length > 0 ? (
+            <GuestSummaryCards
+              summaries={guestSummaries}
+              photoGroups={guestGroups}
+              locked={locked}
+              onPick={(id) => setSelectedGuestId(id)}
+            />
+          ) : locked ? (
+            <LockedPlaceholders />
+          ) : (
+            <p className="py-12 text-center text-rollo-muted">{es.gallery.empty}</p>
+          )
         ) : photos.length === 0 ? (
-          // When locked we render decorative blurred placeholders so the
-          // empty state still feels like a real gallery in waiting. When
-          // unlocked we keep the friendly "be the first" copy.
+          // Flat view, no photos. Locked → placeholders, unlocked → empty.
           locked ? (
             <LockedPlaceholders />
           ) : (
             <p className="py-12 text-center text-rollo-muted">{es.gallery.empty}</p>
           )
-        ) : view === 'by-guest' && !selectedGuestId ? (
-          <GuestCards
-            groups={guestGroups}
-            locked={locked}
-            onPick={(id) => setSelectedGuestId(id)}
-          />
         ) : (
           <>
             {view === 'by-guest' && selectedGuestId && (
@@ -410,43 +437,68 @@ function ViewTab({
   );
 }
 
-function GuestCards({
-  groups,
+
+/**
+ * By-guest tab using guest summaries (id + name + count) regardless of
+ * whether the photos themselves are visible. When we have hydrated photos
+ * for a guest we use the first one as a cover (blurred when locked);
+ * otherwise the card is a plain gradient. Cards are tappable only when
+ * the rollo isn't locked.
+ */
+function GuestSummaryCards({
+  summaries,
+  photoGroups,
   locked,
   onPick,
 }: {
-  groups: { id: string; name: string; count: number; photos: SheetPhoto[] }[];
+  summaries: { id: string; name: string; count: number }[];
+  photoGroups: { id: string; name: string; count: number; photos: SheetPhoto[] }[];
   locked: boolean;
   onPick: (id: string) => void;
 }) {
-  if (!groups.length) {
-    return locked ? (
-      <LockedPlaceholders />
-    ) : (
-      <p className="py-12 text-center text-rollo-muted">{es.gallery.empty}</p>
-    );
-  }
+  // Map guest id → cover photo for quick lookup.
+  const covers = new Map<string, SheetPhoto>();
+  for (const g of photoGroups) covers.set(g.id, g.photos[0]);
+
+  const gradients = [
+    'from-rollo-accent/40 to-rollo-gold/30',
+    'from-purple-500/40 to-pink-500/30',
+    'from-blue-500/40 to-cyan-400/30',
+    'from-orange-500/40 to-yellow-400/30',
+    'from-rose-500/40 to-fuchsia-400/30',
+    'from-emerald-500/40 to-teal-400/30',
+  ];
+
   return (
     <div className="mt-6 grid grid-cols-2 gap-3">
-      {groups.map((g) => {
-        const cover = g.photos[0];
+      {summaries.map((g, i) => {
+        const cover = covers.get(g.id);
+        const canOpen = !locked && g.count > 0;
         return (
           <button
             key={g.id}
-            onClick={locked ? undefined : () => onPick(g.id)}
-            disabled={locked}
-            className="relative aspect-[3/4] overflow-hidden rounded-2xl bg-rollo-surface transition active:scale-[0.98]"
+            onClick={canOpen ? () => onPick(g.id) : undefined}
+            disabled={!canOpen}
+            className={`relative aspect-[3/4] overflow-hidden rounded-2xl bg-rollo-surface transition ${
+              canOpen ? 'active:scale-[0.98]' : ''
+            }`}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={cover.url}
-              alt=""
-              className={`h-full w-full object-cover ${
-                locked ? 'scale-110 opacity-40 blur-2xl' : ''
-              }`}
-              style={locked ? undefined : { filter: filterCss(cover.filter, cover.id) }}
-            />
-            {!locked && <Grain filter={cover.filter} opacity={0.55} />}
+            {cover ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={cover.url}
+                  alt=""
+                  className={`h-full w-full object-cover ${
+                    locked ? 'scale-110 opacity-40 blur-2xl' : ''
+                  }`}
+                  style={locked ? undefined : { filter: filterCss(cover.filter, cover.id) }}
+                />
+                {!locked && <Grain filter={cover.filter} opacity={0.55} />}
+              </>
+            ) : (
+              <div className={`absolute inset-0 bg-gradient-to-br ${gradients[i % gradients.length]}`} />
+            )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
             {locked && (
               <span
@@ -460,7 +512,7 @@ function GuestCards({
               <p className="font-display text-base leading-tight text-white">{g.name}</p>
               <p className="text-xs text-white/70">
                 {es.gallery.photos_count(g.count)}
-                {locked && (
+                {locked && g.count > 0 && (
                   <span className="ml-1 text-white/50">· aún sin revelar</span>
                 )}
               </p>
