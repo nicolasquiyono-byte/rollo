@@ -49,6 +49,8 @@ export function GalleryHub({
   const [inviteOpen, setInviteOpen] = useState(false);
   const [momentsOpen, setMomentsOpen] = useState(false);
   const [countdown, setCountdown] = useState('');
+  const [view, setView] = useState<'all' | 'by-guest'>('all');
+  const [selectedGuestId, setSelectedGuestId] = useState<string | null>(null);
 
   // Live countdown until rollo closes.
   useEffect(() => {
@@ -164,7 +166,28 @@ export function GalleryHub({
     };
   }, [photos, rolloId, supabase]);
 
-  const lightboxPhoto = active !== null ? photos[active] ?? null : null;
+  // Group by guest for the by-guest view.
+  const guestGroups = useMemo(() => {
+    const map = new Map<string, { name: string; photos: SheetPhoto[] }>();
+    for (const p of photos) {
+      const g = map.get(p.guestId);
+      if (g) g.photos.push(p);
+      else map.set(p.guestId, { name: p.by ?? 'Anónimo', photos: [p] });
+    }
+    return Array.from(map.entries())
+      .map(([id, { name, photos: ps }]) => ({ id, name, count: ps.length, photos: ps }))
+      .sort((a, b) => new Date(b.photos[0].takenAt).getTime() - new Date(a.photos[0].takenAt).getTime());
+  }, [photos]);
+
+  // Photos shown in the lightbox cycle through the currently-visible set.
+  const visiblePhotos = useMemo(() => {
+    if (view === 'by-guest' && selectedGuestId) {
+      return guestGroups.find((g) => g.id === selectedGuestId)?.photos ?? [];
+    }
+    return photos;
+  }, [view, selectedGuestId, photos, guestGroups]);
+
+  const lightboxPhoto = active !== null ? visiblePhotos[active] ?? null : null;
 
   return (
     <>
@@ -175,6 +198,12 @@ export function GalleryHub({
         peopleCount={peopleCount}
         countdown={countdown}
         locked={locked}
+        view={view}
+        onSwitchView={(v) => {
+          setView(v);
+          setSelectedGuestId(null);
+          setActive(null);
+        }}
         onBack={() => router.back()}
         onTakePhoto={() => router.push(`/rollo/${code}/camara`)}
         onShowInvite={() => setInviteOpen(true)}
@@ -190,22 +219,34 @@ export function GalleryHub({
           </div>
         ) : photos.length === 0 ? (
           <p className="py-12 text-center text-rollo-muted">{es.gallery.empty}</p>
+        ) : view === 'by-guest' && !selectedGuestId ? (
+          <GuestCards groups={guestGroups} onPick={(id) => setSelectedGuestId(id)} />
         ) : (
-          <PhotoGrid
-            photos={photos}
-            locked={locked}
-            onOpen={(i) => setActive(i)}
-          />
+          <>
+            {view === 'by-guest' && selectedGuestId && (
+              <button
+                onClick={() => setSelectedGuestId(null)}
+                className="mt-4 text-sm text-rollo-muted hover:text-rollo-ink"
+              >
+                ← {es.gallery.back_to_list}
+              </button>
+            )}
+            <PhotoGrid
+              photos={visiblePhotos}
+              locked={locked}
+              onOpen={(i) => setActive(i)}
+            />
+          </>
         )}
       </main>
 
       {lightboxPhoto && !locked && (
         <Lightbox
-          photos={photos}
+          photos={visiblePhotos}
           activeIndex={active!}
           onClose={() => setActive(null)}
-          onPrev={() => setActive((i) => (i === null ? null : (i - 1 + photos.length) % photos.length))}
-          onNext={() => setActive((i) => (i === null ? null : (i + 1) % photos.length))}
+          onPrev={() => setActive((i) => (i === null ? null : (i - 1 + visiblePhotos.length) % visiblePhotos.length))}
+          onNext={() => setActive((i) => (i === null ? null : (i + 1) % visiblePhotos.length))}
         />
       )}
 
@@ -224,6 +265,8 @@ function Hero({
   peopleCount,
   countdown,
   locked,
+  view,
+  onSwitchView,
   onBack,
   onTakePhoto,
   onShowInvite,
@@ -235,6 +278,8 @@ function Hero({
   peopleCount: number;
   countdown: string;
   locked: boolean;
+  view: 'all' | 'by-guest';
+  onSwitchView: (v: 'all' | 'by-guest') => void;
   onBack: () => void;
   onTakePhoto: () => void;
   onShowInvite: () => void;
@@ -242,11 +287,13 @@ function Hero({
 }) {
   return (
     <header
+      // `isolation: isolate` creates a new stacking context so the absolute-
+      // positioned cover image inside doesn't escape behind the page body.
       className="relative w-full overflow-hidden"
-      style={{ paddingTop: 'max(env(safe-area-inset-top), 16px)' }}
+      style={{ isolation: 'isolate' }}
     >
       {/* Cover image as backdrop. Falls back to brand gradient when missing. */}
-      <div className="absolute inset-0 -z-10">
+      <div className="absolute inset-0 z-0">
         {coverImageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -257,7 +304,9 @@ function Hero({
         ) : (
           <div className="noise-bg h-full w-full" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/30 to-black" />
+        {/* Lighter top so the cover shows; ramps to opaque at the bottom so
+            text and buttons are legible. */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/15 via-black/55 to-black" />
       </div>
 
       {/* Top-left back button */}
@@ -270,19 +319,20 @@ function Hero({
         <ArrowLeft size={20} />
       </button>
 
-      {/* Title + stats + CTAs */}
-      <div className="relative px-5 pb-6 pt-[60vw] sm:pt-80">
+      {/* Title + stats + CTAs. Shorter top padding than before so the grid
+          peeks above the fold; the cover is still visible (~38% of screen). */}
+      <div className="relative z-10 px-5 pb-5 pt-[38vw] sm:pt-56">
         <h1 className="font-display text-4xl leading-[1.05] tracking-tight text-white sm:text-5xl">
           {name}
         </h1>
 
-        <div className="mt-6 flex items-end gap-6 text-white/85">
+        <div className="mt-5 flex items-end gap-6 text-white/85">
           <Stat label="Momentos" value={String(photosCount)} />
           <Stat label="Restantes" value={countdown || '…'} mono />
           <Stat label="Personas" value={String(peopleCount)} chevron />
         </div>
 
-        <div className="mt-6 flex items-center gap-3">
+        <div className="mt-5 flex items-center gap-3">
           <button
             onClick={onTakePhoto}
             disabled={locked}
@@ -306,8 +356,79 @@ function Hero({
             {locked ? <Lock size={18} /> : <Download size={20} />}
           </button>
         </div>
+
+        {/* View toggle: Todas / Por invitado */}
+        <div className="mt-4 inline-flex rounded-full bg-white/10 p-1 text-sm backdrop-blur">
+          <ViewTab active={view === 'all'} onClick={() => onSwitchView('all')}>
+            {es.gallery.view_all}
+          </ViewTab>
+          <ViewTab active={view === 'by-guest'} onClick={() => onSwitchView('by-guest')}>
+            {es.gallery.view_by_guest}
+          </ViewTab>
+        </div>
       </div>
     </header>
+  );
+}
+
+function ViewTab({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-full px-4 py-1.5 transition ${
+        active ? 'bg-white text-black' : 'text-white/80'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function GuestCards({
+  groups,
+  onPick,
+}: {
+  groups: { id: string; name: string; count: number; photos: SheetPhoto[] }[];
+  onPick: (id: string) => void;
+}) {
+  if (!groups.length) {
+    return <p className="py-12 text-center text-rollo-muted">{es.gallery.empty}</p>;
+  }
+  return (
+    <div className="mt-6 grid grid-cols-2 gap-3">
+      {groups.map((g) => {
+        const cover = g.photos[0];
+        return (
+          <button
+            key={g.id}
+            onClick={() => onPick(g.id)}
+            className="relative aspect-[3/4] overflow-hidden rounded-2xl bg-rollo-surface transition active:scale-[0.98]"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={cover.url}
+              alt=""
+              className="h-full w-full object-cover"
+              style={{ filter: filterCss(cover.filter, cover.id) }}
+            />
+            <Grain filter={cover.filter} opacity={0.55} />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+            <div className="absolute inset-x-0 bottom-0 p-3 text-left">
+              <p className="font-display text-base leading-tight text-white">{g.name}</p>
+              <p className="text-xs text-white/70">{es.gallery.photos_count(g.count)}</p>
+            </div>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

@@ -31,7 +31,9 @@ export function BottomSheet({ open, onClose, children }: Props) {
       requestAnimationFrame(() => setVisible(true));
     } else {
       setVisible(false);
-      const t = setTimeout(() => setMounted(false), 250);
+      // Match the 380ms slide-out so the sheet stays mounted through the
+      // full transition before being removed from the DOM.
+      const t = setTimeout(() => setMounted(false), 380);
       return () => clearTimeout(t);
     }
   }, [open]);
@@ -75,7 +77,7 @@ export function BottomSheet({ open, onClose, children }: Props) {
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex flex-col justify-end transition-colors duration-200 ${
+      className={`fixed inset-0 z-50 flex flex-col justify-end transition-colors duration-300 ${
         visible ? 'bg-black/60' : 'bg-black/0'
       }`}
       onClick={onClose}
@@ -84,13 +86,16 @@ export function BottomSheet({ open, onClose, children }: Props) {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className={`relative max-h-[92dvh] overflow-hidden rounded-t-3xl bg-rollo-bg text-white shadow-2xl transition-transform duration-250 ease-out ${
-          visible ? 'translate-y-0' : 'translate-y-full'
-        }`}
+        className="relative max-h-[92dvh] overflow-hidden rounded-t-3xl bg-rollo-bg text-white shadow-2xl"
         style={{
           transform: visible
             ? `translateY(${dragOffset}px)`
             : 'translateY(100%)',
+          // Slower, smoother slide-in than the previous 250ms snap. The cubic
+          // bezier mimics the iOS sheet curve — quick to start, eased finish.
+          transition: dragStart.current === null
+            ? 'transform 380ms cubic-bezier(0.16, 1, 0.3, 1)'
+            : 'none',
           paddingBottom: 'max(env(safe-area-inset-bottom), 16px)',
         }}
       >
