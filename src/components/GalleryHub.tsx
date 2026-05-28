@@ -492,7 +492,7 @@ function GuestSummaryCards({
                 src={bgUrl}
                 alt=""
                 className={`h-full w-full object-cover ${
-                  locked ? 'scale-110 opacity-50 blur-2xl' : ''
+                  locked ? 'scale-105 opacity-80 blur-lg' : ''
                 }`}
                 style={
                   !locked && cover
@@ -563,7 +563,7 @@ function LockedPlaceholders({ coverImageUrl }: { coverImageUrl: string | null })
         >
           {coverImageUrl ? (
             <div
-              className="absolute inset-0 scale-110 opacity-60 blur-2xl"
+              className="absolute inset-0 scale-105 opacity-85 blur-lg"
               style={{
                 backgroundImage: `url(${coverImageUrl})`,
                 backgroundSize: 'cover',
@@ -639,7 +639,7 @@ function PhotoGrid({
             src={p.url}
             alt=""
             className={`h-full w-full object-cover ${
-              locked ? 'scale-110 opacity-30 blur-2xl' : ''
+              locked ? 'scale-105 opacity-80 blur-lg' : ''
             }`}
             style={locked ? undefined : { filter: filterCss(p.filter, p.id) }}
             loading="lazy"
