@@ -13,6 +13,7 @@
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.45.4",
     "browser-image-compression": "^2.0.2",
+    "dom-to-image-more": "^3.7.2",
     "framer-motion": "^11.18.2",
     "html5-qrcode": "^2.3.8",
     "idb": "^8.0.0",

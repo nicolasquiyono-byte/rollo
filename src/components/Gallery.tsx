@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Lock } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { bakeFilterToBlob, filterCss } from '@/lib/utils/filter-css';
+import { filterCss } from '@/lib/utils/filter-css';
+import { bakeFilterToBlobViaDom } from '@/lib/utils/bake-filter-dom';
 import { formatStampDate, ghostifyStamp, splitStamp } from '@/lib/utils/format-stamp';
 import { Grain } from '@/components/Grain';
 import { es } from '@/lib/i18n/es';
@@ -520,7 +521,7 @@ function Lightbox({
 async function downloadSingleWithFilter(p: GalleryPhoto): Promise<void> {
   try {
     console.log('[Download] Starting download with filter:', p.filter);
-    const blob = await bakeFilterToBlob(p.url, p.filter, p.id, p.takenAt);
+    const blob = await bakeFilterToBlobViaDom(p.url, p.filter, p.id, p.takenAt);
     console.log('[Download] Blob created, size:', blob.size);
     
     // En móvil, usa Web Share API para guardar directo a Fotos
