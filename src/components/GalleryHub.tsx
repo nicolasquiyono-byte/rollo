@@ -156,33 +156,27 @@ export function GalleryHub({
     };
   }, [rolloId, hydrate, supabase]);
 
-  // Fetch every guest + how many photos they've taken. Runs whenever the
-  // photos list changes (so realtime inserts bump the counts) and powers
-  // both the people-count stat and the by-guest tab — even when no photo
-  // rows are visible (locked rollo, RLS, etc.).
+  // Fetch every guest + their real photo count from the DB (embedded
+  // aggregate) so the by-guest tab is accurate even when individual photo
+  // URLs failed to sign (locked rollo, storage RLS, etc.). Re-runs when
+  // `photos` changes so realtime inserts bump the totals.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const { data: guests, error } = await supabase
         .from('guests')
-        .select('id, name')
+        .select('id, name, photos(count)')
         .eq('rollo_id', rolloId);
       if (error || !guests || cancelled) return;
-      // Counts per guest from the photos we already have hydrated. For a
-      // locked rollo without readable photos we'd see 0s; that's fine —
-      // the row count from the unlock-photos policy is already in `photos`
-      // anyway since the SELECT policy is open.
-      const counts = new Map<string, number>();
-      for (const p of photos) {
-        counts.set(p.guestId, (counts.get(p.guestId) ?? 0) + 1);
-      }
-      const summaries = guests.map((g) => ({
-        id: g.id,
-        name: g.name,
-        count: counts.get(g.id) ?? 0,
-      }));
-      // Only count people who've actually taken a photo for the stat; the
-      // by-guest tab shows everyone so the host can see who joined.
+      type GuestRow = {
+        id: string;
+        name: string;
+        photos: { count: number }[] | { count: number } | null;
+      };
+      const summaries = (guests as GuestRow[]).map((g) => {
+        const c = Array.isArray(g.photos) ? g.photos[0]?.count ?? 0 : g.photos?.count ?? 0;
+        return { id: g.id, name: g.name, count: c };
+      });
       const active = summaries.filter((s) => s.count > 0).length;
       setGuestSummaries(summaries);
       setPeopleCount(active > 0 ? active : guests.length);
@@ -252,6 +246,7 @@ export function GalleryHub({
             <GuestSummaryCards
               summaries={guestSummaries}
               photoGroups={guestGroups}
+              fallbackCover={coverImageUrl}
               locked={locked}
               onPick={(id) => setSelectedGuestId(id)}
             />
@@ -457,32 +452,31 @@ function ViewTab({
 function GuestSummaryCards({
   summaries,
   photoGroups,
+  fallbackCover,
   locked,
   onPick,
 }: {
   summaries: { id: string; name: string; count: number }[];
   photoGroups: { id: string; name: string; count: number; photos: SheetPhoto[] }[];
+  fallbackCover: string | null;
   locked: boolean;
   onPick: (id: string) => void;
 }) {
-  // Map guest id → cover photo for quick lookup.
+  // Map guest id → cover photo (taken by that guest) for quick lookup.
   const covers = new Map<string, SheetPhoto>();
   for (const g of photoGroups) covers.set(g.id, g.photos[0]);
 
-  const gradients = [
-    'from-rollo-accent/40 to-rollo-gold/30',
-    'from-purple-500/40 to-pink-500/30',
-    'from-blue-500/40 to-cyan-400/30',
-    'from-orange-500/40 to-yellow-400/30',
-    'from-rose-500/40 to-fuchsia-400/30',
-    'from-emerald-500/40 to-teal-400/30',
-  ];
-
   return (
     <div className="mt-6 grid grid-cols-2 gap-3">
-      {summaries.map((g, i) => {
+      {summaries.map((g) => {
         const cover = covers.get(g.id);
         const canOpen = !locked && g.count > 0;
+        // Pick what backs the card visually:
+        //   1. A real photo by the guest (best — actually shows their POV)
+        //   2. The rollo's cover image (so we still get a *real* image
+        //      blurred instead of a synthetic gradient)
+        //   3. Nothing — falls back to the surface color
+        const bgUrl = cover?.url ?? fallbackCover ?? null;
         return (
           <button
             key={g.id}
@@ -492,23 +486,24 @@ function GuestSummaryCards({
               canOpen ? 'active:scale-[0.98]' : ''
             }`}
           >
-            {cover ? (
-              <>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={cover.url}
-                  alt=""
-                  className={`h-full w-full object-cover ${
-                    locked ? 'scale-110 opacity-40 blur-2xl' : ''
-                  }`}
-                  style={locked ? undefined : { filter: filterCss(cover.filter, cover.id) }}
-                />
-                {!locked && <Grain filter={cover.filter} opacity={0.55} />}
-              </>
-            ) : (
-              <div className={`absolute inset-0 bg-gradient-to-br ${gradients[i % gradients.length]}`} />
+            {bgUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={bgUrl}
+                alt=""
+                className={`h-full w-full object-cover ${
+                  locked ? 'scale-110 opacity-50 blur-2xl' : ''
+                }`}
+                style={
+                  !locked && cover
+                    ? { filter: filterCss(cover.filter, cover.id) }
+                    : undefined
+                }
+              />
             )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+            {!locked && cover && <Grain filter={cover.filter} opacity={0.55} />}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/15" />
+
             {locked && (
               <span
                 aria-hidden="true"
@@ -517,14 +512,25 @@ function GuestSummaryCards({
                 <Lock size={14} />
               </span>
             )}
+
+            {/* Centred count: big number on top, label below. */}
+            <div className="absolute inset-0 grid place-items-center">
+              <div className="text-center">
+                <div className="font-display text-5xl leading-none text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]">
+                  {g.count}
+                </div>
+                <div className="mt-1 text-[10px] uppercase tracking-[0.2em] text-white/80">
+                  {g.count === 1 ? 'foto' : 'fotos'}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer: guest name + locked subtext when applicable. */}
             <div className="absolute inset-x-0 bottom-0 p-3 text-left">
               <p className="font-display text-base leading-tight text-white">{g.name}</p>
-              <p className="text-xs text-white/70">
-                {es.gallery.photos_count(g.count)}
-                {locked && g.count > 0 && (
-                  <span className="ml-1 text-white/50">· aún sin revelar</span>
-                )}
-              </p>
+              {locked && g.count > 0 && (
+                <p className="text-[11px] text-white/55">aún sin revelar</p>
+              )}
             </div>
           </button>
         );
