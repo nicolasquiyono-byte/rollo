@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { ArrowLeft, Copy, Eye, Lock, Sparkles } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Countdown } from '@/components/Countdown';
 import { Grain } from '@/components/Grain';
@@ -191,12 +192,16 @@ export function AdminDashboard({ rollo: initialRollo, token, initial }: Props) {
     (rollo.reveals_at !== null && new Date(rollo.reveals_at).getTime() <= Date.now());
 
   return (
-    <main className="mx-auto max-w-2xl px-6 pb-40 pt-8">
-      <header className="flex items-center justify-between">
-        <Link href={`/rollo/${rollo.code}`} className="text-xs uppercase tracking-widest text-rollo-muted">
-          ← Vista invitado
+    <main className="mx-auto max-w-2xl px-6 pb-36 pt-6">
+      <header className="flex items-center justify-between gap-3">
+        <Link
+          href={`/rollo/${rollo.code}`}
+          className="inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-sm text-white/85 transition active:scale-95 hover:border-white/30 hover:bg-white/5"
+        >
+          <ArrowLeft size={16} />
+          <span>Vista invitado</span>
         </Link>
-        <span className="rounded-full bg-rollo-accent/10 px-3 py-1 text-xs uppercase tracking-wide text-rollo-accent">
+        <span className="rounded-full bg-rollo-accent/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-rollo-accent">
           Admin
         </span>
       </header>
@@ -287,39 +292,53 @@ export function AdminDashboard({ rollo: initialRollo, token, initial }: Props) {
         </section>
       )}
 
-      <footer className="fixed inset-x-0 bottom-0 z-10 mx-auto max-w-2xl border-t border-white/5 bg-rollo-bg/95 p-4 backdrop-blur">
+      <footer
+        className="fixed inset-x-0 bottom-0 z-10 mx-auto max-w-2xl border-t border-white/5 bg-rollo-bg/95 p-4 backdrop-blur"
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
+      >
         {error && <p className="mb-2 text-center text-xs text-rollo-accent">Error: {error}</p>}
         <div className="flex flex-col gap-2">
-          <Link
-            href={`/rollo/${rollo.code}/galeria`}
-            className="rounded-full border border-white/10 py-3 text-center text-sm"
-          >
-            Ver galería completa
-          </Link>
-          <button
-            onClick={copyJoinLink}
-            className="rounded-full border border-white/10 py-3 text-sm"
-          >
-            {copied ? '¡Copiado!' : 'Copiar link de invitación'}
-          </button>
-          {!isClosed && (
+          {/* Primary action — only one shows at a time (close while open,
+              reveal once closed but still delayed). Keeps the footer
+              shorter and emphasises the destructive action. */}
+          {!isClosed ? (
             <button
               onClick={closeNow}
               disabled={acting !== null}
-              className="rounded-full bg-rollo-accent py-3 text-sm font-semibold text-white disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-rollo-accent py-3.5 text-sm font-semibold text-white shadow-lg shadow-rollo-accent/20 transition active:scale-[0.99] disabled:opacity-60"
             >
+              <Lock size={16} />
               {acting === 'close' ? 'Cerrando…' : 'Cerrar rollo ahora'}
             </button>
-          )}
-          {!isRevealed && rollo.reveal_type === 'delayed' && (
+          ) : !isRevealed && rollo.reveal_type === 'delayed' ? (
             <button
               onClick={revealNow}
               disabled={acting !== null}
-              className="rounded-full border border-rollo-accent py-3 text-sm font-semibold text-rollo-accent disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 rounded-full border-2 border-rollo-accent bg-rollo-accent/10 py-3.5 text-sm font-semibold text-rollo-accent transition active:scale-[0.99] disabled:opacity-60"
             >
+              <Sparkles size={16} />
               {acting === 'reveal' ? 'Revelando…' : 'Revelar fotos ahora'}
             </button>
-          )}
+          ) : null}
+
+          {/* Secondary actions paired in a row so the footer takes less
+              vertical space than the previous 4-button stack. */}
+          <div className="flex gap-2">
+            <Link
+              href={`/rollo/${rollo.code}/galeria`}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-white/15 py-3 text-sm text-white transition active:scale-95 hover:border-white/30 hover:bg-white/5"
+            >
+              <Eye size={15} />
+              Ver galería
+            </Link>
+            <button
+              onClick={copyJoinLink}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-white/15 py-3 text-sm text-white transition active:scale-95 hover:border-white/30 hover:bg-white/5"
+            >
+              <Copy size={15} />
+              {copied ? '¡Copiado!' : 'Copiar link'}
+            </button>
+          </div>
         </div>
       </footer>
 
