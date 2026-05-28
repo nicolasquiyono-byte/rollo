@@ -225,7 +225,16 @@ export function GalleryHub({
           setSelectedGuestId(null);
           setActive(null);
         }}
-        onBack={() => router.back()}
+        onBack={() => {
+          // router.back() does nothing when the user landed here directly
+          // (no history entry to pop). Fall back to the app home so the
+          // arrow always feels live.
+          if (typeof window !== 'undefined' && window.history.length > 1) {
+            router.back();
+          } else {
+            router.push('/');
+          }
+        }}
         onTakePhoto={() => router.push(`/rollo/${code}/camara`)}
         onShowInvite={() => setInviteOpen(true)}
         onShowMoments={() => setMomentsOpen(true)}
