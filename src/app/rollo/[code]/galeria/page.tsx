@@ -30,6 +30,7 @@ export default async function GaleriaPage({ params }: Props) {
         name={rollo.name}
         coverImageUrl={rollo.cover_image_url}
         closesAt={rollo.closes_at}
+        revealsAt={rollo.reveals_at}
         locked={locked}
       />
     </>

@@ -20,6 +20,7 @@ interface Props {
   name: string;
   coverImageUrl: string | null;
   closesAt: string;
+  revealsAt: string | null;
   locked: boolean;
 }
 
@@ -38,6 +39,7 @@ export function GalleryHub({
   name,
   coverImageUrl,
   closesAt,
+  revealsAt,
   locked,
 }: Props) {
   const router = useRouter();
@@ -52,17 +54,22 @@ export function GalleryHub({
   const [view, setView] = useState<'all' | 'by-guest'>('all');
   const [selectedGuestId, setSelectedGuestId] = useState<string | null>(null);
 
-  // Live countdown until rollo closes.
+  // Live countdown. When locked (delayed-reveal in the future), target the
+  // reveal time so the stat matches the top banner; otherwise target the
+  // rollo close time so users see how long they have left to shoot.
   useEffect(() => {
+    const target = locked && revealsAt ? revealsAt : closesAt;
     function tick() {
-      const parts = diffParts(closesAt);
-      if (parts.done) setCountdown('Cerrado');
+      const parts = diffParts(target);
+      if (parts.done) setCountdown(locked ? 'cualquier momento' : 'Cerrado');
       else setCountdown(formatCountdown(parts, es.countdown));
     }
     tick();
-    const id = setInterval(tick, 30_000);
+    // Use 1s while locked so it ticks visibly down with the banner; once
+    // unlocked there's no rush, so back off to 30s.
+    const id = setInterval(tick, locked ? 1000 : 30_000);
     return () => clearInterval(id);
-  }, [closesAt]);
+  }, [closesAt, revealsAt, locked]);
 
   // Sign each row's storage path so the <img> tags can load it.
   const hydrate = useCallback(
@@ -218,9 +225,20 @@ export function GalleryHub({
             ))}
           </div>
         ) : photos.length === 0 ? (
-          <p className="py-12 text-center text-rollo-muted">{es.gallery.empty}</p>
+          // When locked we render decorative blurred placeholders so the
+          // empty state still feels like a real gallery in waiting. When
+          // unlocked we keep the friendly "be the first" copy.
+          locked ? (
+            <LockedPlaceholders />
+          ) : (
+            <p className="py-12 text-center text-rollo-muted">{es.gallery.empty}</p>
+          )
         ) : view === 'by-guest' && !selectedGuestId ? (
-          <GuestCards groups={guestGroups} onPick={(id) => setSelectedGuestId(id)} />
+          <GuestCards
+            groups={guestGroups}
+            locked={locked}
+            onPick={(id) => setSelectedGuestId(id)}
+          />
         ) : (
           <>
             {view === 'by-guest' && selectedGuestId && (
@@ -394,13 +412,19 @@ function ViewTab({
 
 function GuestCards({
   groups,
+  locked,
   onPick,
 }: {
   groups: { id: string; name: string; count: number; photos: SheetPhoto[] }[];
+  locked: boolean;
   onPick: (id: string) => void;
 }) {
   if (!groups.length) {
-    return <p className="py-12 text-center text-rollo-muted">{es.gallery.empty}</p>;
+    return locked ? (
+      <LockedPlaceholders />
+    ) : (
+      <p className="py-12 text-center text-rollo-muted">{es.gallery.empty}</p>
+    );
   }
   return (
     <div className="mt-6 grid grid-cols-2 gap-3">
@@ -409,25 +433,72 @@ function GuestCards({
         return (
           <button
             key={g.id}
-            onClick={() => onPick(g.id)}
+            onClick={locked ? undefined : () => onPick(g.id)}
+            disabled={locked}
             className="relative aspect-[3/4] overflow-hidden rounded-2xl bg-rollo-surface transition active:scale-[0.98]"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={cover.url}
               alt=""
-              className="h-full w-full object-cover"
-              style={{ filter: filterCss(cover.filter, cover.id) }}
+              className={`h-full w-full object-cover ${
+                locked ? 'scale-110 opacity-40 blur-2xl' : ''
+              }`}
+              style={locked ? undefined : { filter: filterCss(cover.filter, cover.id) }}
             />
-            <Grain filter={cover.filter} opacity={0.55} />
+            {!locked && <Grain filter={cover.filter} opacity={0.55} />}
             <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+            {locked && (
+              <span
+                aria-hidden="true"
+                className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-full bg-black/55 text-white/90 backdrop-blur"
+              >
+                <Lock size={14} />
+              </span>
+            )}
             <div className="absolute inset-x-0 bottom-0 p-3 text-left">
               <p className="font-display text-base leading-tight text-white">{g.name}</p>
-              <p className="text-xs text-white/70">{es.gallery.photos_count(g.count)}</p>
+              <p className="text-xs text-white/70">
+                {es.gallery.photos_count(g.count)}
+                {locked && (
+                  <span className="ml-1 text-white/50">· aún sin revelar</span>
+                )}
+              </p>
             </div>
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * Decorative blurred cards for the locked-empty state. Renders 6 gradient
+ * placeholders with a centered lock so the gallery still looks alive while
+ * the rollo is waiting to reveal.
+ */
+function LockedPlaceholders() {
+  const gradients = [
+    'from-rollo-accent/40 to-rollo-gold/30',
+    'from-purple-500/40 to-pink-500/30',
+    'from-blue-500/40 to-cyan-400/30',
+    'from-orange-500/40 to-yellow-400/30',
+    'from-rose-500/40 to-fuchsia-400/30',
+    'from-emerald-500/40 to-teal-400/30',
+  ];
+  return (
+    <div className="mt-6 grid grid-cols-2 gap-3">
+      {gradients.map((g, i) => (
+        <div
+          key={i}
+          className={`relative aspect-[3/4] overflow-hidden rounded-2xl bg-gradient-to-br ${g}`}
+        >
+          <div className="absolute inset-0 backdrop-blur-2xl" />
+          <div className="absolute inset-0 grid place-items-center">
+            <Lock size={28} className="text-white/60" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
