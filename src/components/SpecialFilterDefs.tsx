@@ -80,25 +80,25 @@ export function SpecialFilterDefs() {
           <feBlend in="weakBlur" in2="SourceGraphic" mode="screen" />
         </filter>
 
-        {/* RETRO — 2010 pink/blue sunset wash
-            Pink-magenta cast across most tones with blue preserved in
-            cool areas (sky stays blue, mids/shadows turn pink). G cut
-            hard for the magenta push, B mostly preserved so cool colors
-            don't go yellow/brown. Shadow lifts give the faded film feel.
+        {/* RETRO — 2010 pink/blue split-tone (Hefe / Brannan vibe)
+            True split: PINK in highlights, BLUE-PURPLE in shadows. R has
+            no shadow lift (multiplier only) so darks don't go pink; B has
+            a heavy lift so anywhere dark picks up blue. Highlights still
+            go pink because R×1.20 clamps near 1.0 while B saturates too.
             Pixel breakdown:
-              Black (0,0,0)        → (0.08, 0.03, 0.05) pink-purple lift
-              Pure blue (0,0,1)    → (0.08, 0.03, 1.00) preserved deep blue
-              Sky (0.3,0.5,0.9)    → (0.40, 0.46, 0.91) blue-pink gradient
-              Skin (0.85,0.7,0.6)  → (0.97, 0.63, 0.62) pink-peach
-              White (1,1,1)        → (1.00, 0.88, 1.00) pink highlights
+              Black (0,0,0)        → (0.00, 0.05, 0.25) blue-purple shadows
+              Dark (0.15)          → (0.18, 0.17, 0.39) blue-magenta darks
+              Mid gray (0.5)       → (0.60, 0.45, 0.73) pink with blue lift
+              Sky (0.3,0.5,0.9)    → (0.36, 0.45, 1.00) deep blue preserved
+              White (1,1,1)        → (1.00, 0.85, 1.00) clean pink highlights
         */}
         <filter id="retro-tone" colorInterpolationFilters="sRGB">
           <feColorMatrix
             type="matrix"
             values="
-              1.05 0    0    0    0.08
-              0    0.85 0    0    0.03
-              0    0    0.95 0    0.05
+              1.20 0    0    0    0
+              0    0.80 0    0    0.05
+              0    0    0.95 0    0.25
               0    0    0    1    0
             "
           />
