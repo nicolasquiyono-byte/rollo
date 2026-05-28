@@ -195,7 +195,10 @@ export function AdminDashboard({ rollo: initialRollo, token, initial }: Props) {
     <main className="mx-auto max-w-2xl px-6 pb-36 pt-6">
       <header className="flex items-center justify-between gap-3">
         <Link
-          href={`/rollo/${rollo.code}`}
+          // Pass the admin token in the query string so the guest view
+          // knows the visitor is an admin and can offer a "Regresar a
+          // admin" link back here without re-authenticating.
+          href={`/rollo/${rollo.code}?admin_key=${token}`}
           className="inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-sm text-white/85 transition active:scale-95 hover:border-white/30 hover:bg-white/5"
         >
           <ArrowLeft size={16} />

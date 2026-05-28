@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { ArrowLeft } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 import { Countdown } from '@/components/Countdown';
 import { QRCodeView } from '@/components/QRCode';
@@ -7,11 +8,13 @@ import { es } from '@/lib/i18n/es';
 
 interface Props {
   params: { code: string };
+  searchParams: { admin_key?: string };
 }
 
-export default async function RolloPage({ params }: Props) {
+export default async function RolloPage({ params, searchParams }: Props) {
   const supabase = createClient();
   const code = params.code.toUpperCase();
+  const adminKey = searchParams.admin_key;
 
   const { data: rollo } = await supabase
     .from('rollos')
@@ -31,10 +34,27 @@ export default async function RolloPage({ params }: Props) {
 
   return (
     <main className="mx-auto max-w-md px-6 py-10">
-      <div className="flex items-center justify-between">
-        <Link href="/" className="text-xs uppercase tracking-widest text-rollo-muted">
-          ← {es.brand}
-        </Link>
+      <div className="flex items-center justify-between gap-3">
+        {adminKey ? (
+          // Admin came here from the dashboard — give them a bordered
+          // "Regresar a admin" pill that mirrors the admin's "Vista
+          // invitado" affordance.
+          <Link
+            href={`/rollo/${rollo.code}/admin?key=${adminKey}`}
+            className="inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-sm text-white/85 transition active:scale-95 hover:border-white/30 hover:bg-white/5"
+          >
+            <ArrowLeft size={16} />
+            <span>Regresar a admin</span>
+          </Link>
+        ) : (
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-sm text-white/85 transition active:scale-95 hover:border-white/30 hover:bg-white/5"
+          >
+            <ArrowLeft size={16} />
+            <span>{es.brand}</span>
+          </Link>
+        )}
         <span className="font-display tracking-widest">{rollo.code}</span>
       </div>
 
