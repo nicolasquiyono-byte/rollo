@@ -80,24 +80,25 @@ export function SpecialFilterDefs() {
           <feBlend in="weakBlur" in2="SourceGraphic" mode="screen" />
         </filter>
 
-        {/* RETRO — 2010 golden-Tumblr / Indie Sleaze, warm cream wash
-            Warm/peach overall (cream highlights, golden midtones) with a
-            subtle rosy bias. B channel cut for the sepia warmth, R/G kept
-            close together so highlights go cream (not pink). Black lift
-            keeps the washed-out low-contrast film look.
+        {/* RETRO — 2010 Instagram Valencia / Earlybird split-tone
+            Warm pink-peach in highlights/skin + teal-cyan in shadows/sky.
+            Achieved by boosting R, slightly cutting G with a lift (cool
+            areas go greenish), heavy B cut with a strong lift (pure blues
+            desaturate into teal). Faded "washed" look from the lifts.
             Pixel breakdown:
-              Black (0,0,0)     → (0.02, 0.02, 0.08) lifted, faint warm gray
-              Shadow (0.15)     → (0.19, 0.16, 0.20) warm muted shadows
-              Mid (0.5)         → (0.57, 0.48, 0.47) warm peach mids
-              Highlight (1,1,1) → (1.00, 0.94, 0.86) cream/peach highlights
+              Black (0,0,0)         → (0.03, 0.04, 0.08) teal-warm lifted
+              Pure blue (0,0,1)     → (0.03, 0.04, 0.73) desaturated teal
+              Sky cyan (0.5,0.7,1)  → (0.61, 0.71, 0.73) faded greenish-white
+              Skin (0.85,0.7,0.6)   → (1.00, 0.71, 0.47) warm pink-peach
+              White (1,1,1)         → (1.00, 0.99, 0.73) cream-pink highlights
         */}
         <filter id="retro-tone" colorInterpolationFilters="sRGB">
           <feColorMatrix
             type="matrix"
             values="
-              1.10 0    0    0    0.02
-              0    0.92 0    0    0.02
-              0    0    0.78 0    0.08
+              1.15 0    0    0    0.03
+              0    0.95 0    0    0.04
+              0    0    0.65 0    0.08
               0    0    0    1    0
             "
           />
