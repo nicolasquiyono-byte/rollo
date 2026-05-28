@@ -1,10 +1,7 @@
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { Gallery } from '@/components/Gallery';
-import { ShareActions } from './ShareActions';
-import { BackLink } from './BackLink';
+import { GalleryHub } from '@/components/GalleryHub';
 import { LockedBanner } from './LockedBanner';
-import { es } from '@/lib/i18n/es';
 
 interface Props {
   params: { code: string };
@@ -27,21 +24,14 @@ export default async function GaleriaPage({ params }: Props) {
   return (
     <>
       {locked && rollo.reveals_at && <LockedBanner revealsAt={rollo.reveals_at} />}
-
-      <main className="mx-auto max-w-2xl px-4 pb-24 pt-6">
-        <div className="flex items-center justify-between px-2">
-          <BackLink fallback={`/rollo/${rollo.code}`} label={rollo.name} />
-          <span className="font-display tracking-widest">{rollo.code}</span>
-        </div>
-
-        <h1 className="mt-4 px-2 font-display text-2xl">{es.gallery.title}</h1>
-
-        <div className="mt-6">
-          <Gallery rolloId={rollo.id} locked={locked} />
-        </div>
-      </main>
-
-      <ShareActions rolloId={rollo.id} code={rollo.code} name={rollo.name} locked={locked} />
+      <GalleryHub
+        rolloId={rollo.id}
+        code={rollo.code}
+        name={rollo.name}
+        coverImageUrl={rollo.cover_image_url}
+        closesAt={rollo.closes_at}
+        locked={locked}
+      />
     </>
   );
 }
