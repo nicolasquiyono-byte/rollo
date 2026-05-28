@@ -244,13 +244,14 @@ export default function CameraPage() {
   return (
     <div className="relative h-dvh w-full overflow-hidden bg-black">
       {/* Camera surface */}
-      <Camera 
-        disabled={outOfShots} 
-        facing={facing} 
+      <Camera
+        disabled={outOfShots}
+        facing={facing}
         filter={rollo.filter}
         photoId={crypto.randomUUID()}
         takenAt={new Date().toISOString()}
-        onCapture={onCapture} 
+        onCapture={onCapture}
+        onFlipCamera={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))}
       />
 
       {/* Top-left: close */}

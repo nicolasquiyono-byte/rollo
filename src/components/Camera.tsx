@@ -12,6 +12,8 @@ interface CameraProps {
   photoId?: string;
   takenAt?: string;
   onCapture?: (data: { blob: Blob; width: number; height: number }) => void;
+  // Called when the user double-taps the video — page swaps the facing.
+  onFlipCamera?: () => void;
 }
 
 // Browser MediaTrack types don't include torch/zoom yet — use a lax shape.
@@ -31,6 +33,7 @@ export default function Camera({
   photoId,
   takenAt,
   onCapture,
+  onFlipCamera,
 }: CameraProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -53,6 +56,11 @@ export default function Camera({
   // capture so the saved photo matches what the user framed.
   const usingNativeZoom = zoomRange !== null;
   const pinchRef = useRef<{ startDist: number; startZoom: number } | null>(null);
+  // Single-finger tap tracking — used to detect a double-tap that flips
+  // between front and rear cameras. Cancelled the moment a second finger
+  // lands or the finger drifts more than ~10px.
+  const tapRef = useRef<{ time: number; x: number; y: number; moved: boolean } | null>(null);
+  const lastTapTime = useRef(0);
 
   const isFrontCamera = facing === 'user';
 
@@ -176,6 +184,11 @@ export default function Camera({
         startDist: Math.sqrt(dx * dx + dy * dy),
         startZoom: zoom,
       };
+      // Second finger landed — this isn't a tap anymore, it's a pinch.
+      tapRef.current = null;
+    } else if (e.touches.length === 1) {
+      const t = e.touches[0];
+      tapRef.current = { time: Date.now(), x: t.clientX, y: t.clientY, moved: false };
     }
   }
 
@@ -186,11 +199,30 @@ export default function Camera({
       const dist = Math.sqrt(dx * dx + dy * dy);
       const ratio = dist / pinchRef.current.startDist;
       void applyZoom(pinchRef.current.startZoom * ratio);
+    } else if (e.touches.length === 1 && tapRef.current) {
+      const t = e.touches[0];
+      const dx = t.clientX - tapRef.current.x;
+      const dy = t.clientY - tapRef.current.y;
+      if (Math.hypot(dx, dy) > 10) {
+        tapRef.current.moved = true;
+      }
     }
   }
 
   function handleTouchEnd() {
     pinchRef.current = null;
+    // Tap classification: same finger, didn't move much, lifted within
+    // 250ms. A second qualifying tap within 300ms = double-tap → flip.
+    const tap = tapRef.current;
+    tapRef.current = null;
+    if (!tap || tap.moved || Date.now() - tap.time > 250) return;
+    const now = Date.now();
+    if (lastTapTime.current && now - lastTapTime.current < 300) {
+      lastTapTime.current = 0;
+      onFlipCamera?.();
+    } else {
+      lastTapTime.current = now;
+    }
   }
 
   // ---- Capture -----------------------------------------------------------
