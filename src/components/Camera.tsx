@@ -105,10 +105,9 @@ export default function Camera({
       canvas.width = width;
       canvas.height = height;
 
-      // Capturar imagen sin filtro primero
+      // Capture the unfiltered frame from the video.
       context.drawImage(video, 0, 0, width, height);
 
-      // Crear blob sin filtro
       const originalBlob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob((blob) => {
           if (blob) resolve(blob);
@@ -116,25 +115,24 @@ export default function Camera({
         }, 'image/jpeg', 0.95);
       });
 
-      // Crear URL temporal para la imagen original
+      // Bake the filter ONLY for the confirmation preview, so the user can
+      // see what their picture will look like. The upload (in confirmPhoto)
+      // uses the original blob — gallery + downloads re-apply the filter at
+      // render time, which avoids the previous "filter applied twice" bug.
       const originalUrl = URL.createObjectURL(originalBlob);
-
-      // Aplicar filtro usando bakeFilterToBlob (igual que en descargas)
-      const filteredBlob = await bakeFilterToBlob(
+      const previewBlob = await bakeFilterToBlob(
         originalUrl,
         filter,
         photoId,
         takenAt,
-        0.95
+        0.95,
       );
-
-      // Limpiar URL temporal
       URL.revokeObjectURL(originalUrl);
 
-      // Crear preview con filtro aplicado
-      const previewUrl = URL.createObjectURL(filteredBlob);
+      const previewUrl = URL.createObjectURL(previewBlob);
       setCapturedImage(previewUrl);
-      setCapturedData({ blob: filteredBlob, width, height });
+      // IMPORTANT: store the ORIGINAL blob for upload, not the filtered one.
+      setCapturedData({ blob: originalBlob, width, height });
 
     } catch (error) {
       console.error('[Camera] Error al capturar:', error);
