@@ -1,5 +1,6 @@
 import type { FilterType } from '../../types';
 import { formatStampDate, ghostifyStamp, splitStamp } from '@/lib/utils/format-stamp';
+import { applyCssFilterToCanvas } from '@/lib/utils/filter-pixels';
 
 // Single source of truth for the photo filters.
 //
@@ -230,11 +231,16 @@ export async function bakeFilterToBlob(
         return;
       }
 
-      // Apply CSS filter (not SVG, but close approximation)
-      if (css !== 'none') ctx.filter = css;
+      // Draw the original image first.
       ctx.drawImage(img, 0, 0);
 
-      // Add timestamp watermark
+      // Apply the filter via pixel manipulation. We don't rely on ctx.filter
+      // because iOS Safari silently ignores it in many cases — the pixel-
+      // level pass is slower (~1-2s) but produces a correctly filtered image
+      // on every browser.
+      if (css !== 'none') applyCssFilterToCanvas(ctx, canvas, css);
+
+      // Add timestamp watermark (on top of the filtered image).
       if (takenAt) drawTimestampWatermark(ctx, canvas, takenAt);
 
       canvas.toBlob(

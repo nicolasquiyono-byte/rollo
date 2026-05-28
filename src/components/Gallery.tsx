@@ -428,6 +428,12 @@ function Lightbox({
 }) {
   const current = photos[activeIndex];
   const [downloading, setDownloading] = useState(false);
+  // Pre-baked blob for the *current* photo. Baked in a useEffect as soon as
+  // the photo changes so the Web Share API call in the click handler is
+  // synchronous — iOS Safari requires `navigator.share` to be invoked
+  // inside the same JS task as the user gesture, otherwise it silently
+  // fails. With the blob pre-cached, the click → share path is instant.
+  const [preparedBlob, setPreparedBlob] = useState<Blob | null>(null);
   // Track the touch starting point so the touchend handler can decide whether
   // the gesture was a real horizontal swipe (vs. a tap or vertical scroll).
   const touchStart = useRef<{ x: number; y: number } | null>(null);
@@ -442,6 +448,23 @@ function Lightbox({
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, [onPrev, onNext, onClose]);
+
+  // Pre-bake the filtered photo whenever the active photo changes.
+  useEffect(() => {
+    if (!current) return;
+    let cancelled = false;
+    setPreparedBlob(null);
+    bakeFilterToBlob(current.url, current.filter, current.id, current.takenAt)
+      .then((blob) => {
+        if (!cancelled) setPreparedBlob(blob);
+      })
+      .catch((err) => {
+        console.error('[Lightbox] pre-bake failed', err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [current]);
 
   function handleTouchStart(e: React.TouchEvent) {
     const t = e.touches[0];
@@ -473,20 +496,25 @@ function Lightbox({
           {activeIndex + 1} / {photos.length}
         </span>
         <button
-          onClick={async (e) => {
+          onClick={(e) => {
             e.stopPropagation();
             if (downloading) return;
-            setDownloading(true);
-            try {
-              await downloadSingleWithFilter(current);
-            } finally {
-              setDownloading(false);
+            // Fast path (preserves iOS gesture for Web Share API): blob is
+            // already pre-baked → share/download immediately, synchronously.
+            if (preparedBlob) {
+              shareOrDownloadBlob(preparedBlob, current);
+              return;
             }
+            // Slow path: bake hadn't finished. Fall back to the async route;
+            // on iOS this loses the gesture so it'll always go to <a download>
+            // (Files app) rather than the share sheet.
+            setDownloading(true);
+            void downloadSingleWithFilter(current).finally(() => setDownloading(false));
           }}
           disabled={downloading}
           className="text-sm text-rollo-ink underline disabled:opacity-50"
         >
-          {downloading ? 'Descargando…' : 'Descargar'}
+          {downloading ? 'Descargando…' : !preparedBlob ? 'Preparando…' : 'Descargar'}
         </button>
       </div>
 
@@ -525,23 +553,50 @@ function Lightbox({
   );
 }
 
+/**
+ * Synchronous share/download dispatch — must be called inside a user gesture
+ * for the Web Share API to work on iOS. If the device supports sharing files
+ * (iOS Safari, modern Android Chrome) we open the system share sheet so the
+ * user can tap "Save Image" → Photos directly. Otherwise we fall back to a
+ * standard <a download> (desktop → Downloads, iOS without share → Files).
+ */
+function shareOrDownloadBlob(blob: Blob, p: GalleryPhoto): void {
+  const filename = `rollo-${p.id}.jpg`;
+  const file = new File([blob], filename, { type: 'image/jpeg' });
+  const nav = navigator as Navigator & {
+    canShare?: (data: ShareData) => boolean;
+    share?: (data: ShareData) => Promise<void>;
+  };
+  if (nav.canShare && nav.share && nav.canShare({ files: [file] })) {
+    nav.share({ files: [file] }).catch((err: Error) => {
+      // AbortError = user cancelled the share sheet → no fallback needed.
+      if (err.name !== 'AbortError') {
+        console.warn('[Gallery] share failed, falling back to download', err);
+        triggerAnchorDownload(blob, filename);
+      }
+    });
+    return;
+  }
+  triggerAnchorDownload(blob, filename);
+}
+
+function triggerAnchorDownload(blob: Blob, filename: string): void {
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = objectUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // Give the browser a tick to start the download before revoking the URL.
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}
+
+// Async fallback used only when the user clicks before the pre-bake finishes.
 async function downloadSingleWithFilter(p: GalleryPhoto): Promise<void> {
   try {
     const blob = await bakeFilterToBlob(p.url, p.filter, p.id, p.takenAt);
-    // Always use a plain <a download> link. The Web Share API was unreliable
-    // here because bakeFilterToBlob takes 1-3s, which on iOS Safari breaks
-    // the synchronous user-gesture context that navigator.share requires.
-    // <a download> works consistently: desktop → Downloads folder, iOS →
-    // Files (user can save to Photos from there).
-    const objectUrl = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = objectUrl;
-    a.download = `rollo-${p.id}.jpg`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    // Give the browser a tick to start the download before revoking the URL.
-    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    triggerAnchorDownload(blob, `rollo-${p.id}.jpg`);
   } catch (err) {
     console.error('[Gallery] download with filter failed', err);
   }
