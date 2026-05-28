@@ -1,6 +1,71 @@
 import type { FilterType } from '../../types';
 import { formatStampDate, ghostifyStamp, splitStamp } from '@/lib/utils/format-stamp';
-import { applyCssFilterToCanvas } from '@/lib/utils/filter-pixels';
+import { applyBloom, applyColorMatrix, applyCssFilterToCanvas } from '@/lib/utils/filter-pixels';
+
+// SVG color matrices — mirrored from SpecialFilterDefs.tsx so the download
+// applies the exact same color science as on-screen. Format: 4×5 matrix
+// (R G B A 1, repeated for each output channel).
+const COOL_CCD_MATRIX = [
+  0.95, 0,    0,    0, 0,
+  0,    1.0,  0,    0, 0,
+  0,    0,    1.05, 0, 0.04,
+  0,    0,    0,    1, 0,
+];
+const RETRO_TONE_MATRIX = [
+  1.10, 0,    0,    0, 0.02,
+  0,    0.92, 0,    0, 0.02,
+  0,    0,    0.78, 0, 0.08,
+  0,    0,    0,    1, 0,
+];
+const FUJI_TONE_MATRIX = [
+  1.05, 0,    0,    0, 0.02,
+  0,    1.0,  0,    0, 0.015,
+  0,    0,    0.75, 0, 0.05,
+  0,    0,    0,    1, 0,
+];
+
+/**
+ * Bake the full filter stack (color matrix + CSS chain + bloom) onto a canvas
+ * already containing the source photo. Matches what the SVG filters do for
+ * the on-screen render — so the downloaded JPEG matches the gallery.
+ */
+export function applyDownloadFilter(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  filter: FilterType,
+  photoId?: string,
+): void {
+  // Step 1: SVG color matrix (cool-ccd / retro-tone / fuji-tone).
+  if (filter === 'vintage' || filter === 'retro' || filter === 'special') {
+    const matrix =
+      filter === 'vintage'
+        ? COOL_CCD_MATRIX
+        : filter === 'retro'
+          ? RETRO_TONE_MATRIX
+          : FUJI_TONE_MATRIX;
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    applyColorMatrix(imgData.data, matrix);
+    ctx.putImageData(imgData, 0, 0);
+  }
+
+  // Step 2: CSS chain (saturate / contrast / brightness / hue / sepia / blur).
+  // For vintage we now skip the canvas hue-rotate compensation since the real
+  // cool-ccd matrix already provides the cool shift in Step 1.
+  const css =
+    filter === 'vintage' && photoId
+      ? vintageVariationFor(photoId, 'dom')
+          .replace('url(#cool-ccd) ', '')
+          .replace('url(#ccd-bloom) ', '')
+      : filter === 'vintage'
+        ? VINTAGE_DOM.replace('url(#cool-ccd) ', '').replace('url(#ccd-bloom) ', '')
+        : filterCssForCanvas(filter, photoId);
+  if (css !== 'none') applyCssFilterToCanvas(ctx, canvas, css);
+
+  // Step 3: CCD bloom (vintage only) — soft halation on highlights.
+  if (filter === 'vintage') {
+    applyBloom(ctx, canvas, 3, 0.35);
+  }
+}
 
 // Single source of truth for the photo filters.
 //
@@ -213,7 +278,6 @@ export async function bakeFilterToBlob(
   takenAt?: string,
   quality = 0.92,
 ): Promise<Blob> {
-  const css = filterCssForCanvas(filter, photoId);
   if (takenAt) await preloadDigitalFont();
 
   return new Promise((resolve, reject) => {
@@ -234,13 +298,12 @@ export async function bakeFilterToBlob(
       // Draw the original image first.
       ctx.drawImage(img, 0, 0);
 
-      // Apply the filter via pixel manipulation. We don't rely on ctx.filter
-      // because iOS Safari silently ignores it in many cases — the pixel-
-      // level pass is slower (~1-2s) but produces a correctly filtered image
-      // on every browser.
-      if (css !== 'none') applyCssFilterToCanvas(ctx, canvas, css);
+      // Apply the full filter stack (SVG color matrix + CSS chain + bloom)
+      // so the downloaded JPEG matches what the user sees on screen. Uses
+      // pixel manipulation throughout — ctx.filter is unreliable on iOS.
+      applyDownloadFilter(ctx, canvas, filter, photoId);
 
-      // Add timestamp watermark (on top of the filtered image).
+      // Add timestamp watermark on top of the filtered image.
       if (takenAt) drawTimestampWatermark(ctx, canvas, takenAt);
 
       canvas.toBlob(

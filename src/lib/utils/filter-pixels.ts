@@ -196,3 +196,55 @@ export function applyCssFilterToCanvas(
   if (spec.blur >= 0.5) applyBlur(imgData, spec.blur);
   ctx.putImageData(imgData, 0, 0);
 }
+
+/**
+ * Apply an SVG-style 4×5 color matrix to image pixel data.
+ * Matrix rows: [Rr Rg Rb Ra Roffset, Gr Gg Gb Ga Goffset, Br Bg Bb Ba Boffset, Ar Ag Ab Aa Aoffset]
+ * Offsets are 0–1 (SVG spec); we scale to 0–255 internally.
+ */
+export function applyColorMatrix(data: Uint8ClampedArray, m: number[]): void {
+  if (m.length !== 20) throw new Error('Color matrix must have 20 values (4×5)');
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const a = data[i + 3];
+    data[i] = clamp(m[0] * r + m[1] * g + m[2] * b + m[3] * a + m[4] * 255);
+    data[i + 1] = clamp(m[5] * r + m[6] * g + m[7] * b + m[8] * a + m[9] * 255);
+    data[i + 2] = clamp(m[10] * r + m[11] * g + m[12] * b + m[13] * a + m[14] * 255);
+    data[i + 3] = clamp(m[15] * r + m[16] * g + m[17] * b + m[18] * a + m[19] * 255);
+  }
+}
+
+/**
+ * CCD-style highlight bloom: clones the canvas, blurs it heavily, scales it
+ * down (so only the brighter areas glow visibly), and screen-blends it onto
+ * the original. Mirrors what the SVG `#ccd-bloom` filter does in the DOM.
+ */
+export function applyBloom(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  blurRadius: number,
+  scale: number,
+): void {
+  const w = canvas.width;
+  const h = canvas.height;
+  const orig = ctx.getImageData(0, 0, w, h);
+  const blurred = new ImageData(new Uint8ClampedArray(orig.data), w, h);
+  // Blur, then scale RGB down so the bloom is subtle (matches SVG matrix×0.35).
+  applyBlur(blurred, blurRadius);
+  const bd = blurred.data;
+  for (let i = 0; i < bd.length; i += 4) {
+    bd[i] = bd[i] * scale;
+    bd[i + 1] = bd[i + 1] * scale;
+    bd[i + 2] = bd[i + 2] * scale;
+  }
+  // Screen blend: out = 255 - (255-base) * (255-overlay) / 255.
+  const od = orig.data;
+  for (let i = 0; i < od.length; i += 4) {
+    od[i] = 255 - ((255 - od[i]) * (255 - bd[i])) / 255;
+    od[i + 1] = 255 - ((255 - od[i + 1]) * (255 - bd[i + 1])) / 255;
+    od[i + 2] = 255 - ((255 - od[i + 2]) * (255 - bd[i + 2])) / 255;
+  }
+  ctx.putImageData(orig, 0, 0);
+}
