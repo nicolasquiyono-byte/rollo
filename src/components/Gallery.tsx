@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Lock } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { filterCss } from '@/lib/utils/filter-css';
-import { bakeFilterToBlobViaDom } from '@/lib/utils/bake-filter-dom';
+import { bakeFilterToBlob, filterCss } from '@/lib/utils/filter-css';
 import { formatStampDate, ghostifyStamp, splitStamp } from '@/lib/utils/format-stamp';
 import { Grain } from '@/components/Grain';
 import { es } from '@/lib/i18n/es';
@@ -428,6 +427,7 @@ function Lightbox({
   onNext: () => void;
 }) {
   const current = photos[activeIndex];
+  const [downloading, setDownloading] = useState(false);
   // Track the touch starting point so the touchend handler can decide whether
   // the gesture was a real horizontal swipe (vs. a tap or vertical scroll).
   const touchStart = useRef<{ x: number; y: number } | null>(null);
@@ -473,13 +473,20 @@ function Lightbox({
           {activeIndex + 1} / {photos.length}
         </span>
         <button
-          onClick={(e) => {
+          onClick={async (e) => {
             e.stopPropagation();
-            void downloadSingleWithFilter(current);
+            if (downloading) return;
+            setDownloading(true);
+            try {
+              await downloadSingleWithFilter(current);
+            } finally {
+              setDownloading(false);
+            }
           }}
-          className="text-sm text-rollo-ink underline"
+          disabled={downloading}
+          className="text-sm text-rollo-ink underline disabled:opacity-50"
         >
-          Descargar
+          {downloading ? 'Descargando…' : 'Descargar'}
         </button>
       </div>
 
@@ -520,34 +527,12 @@ function Lightbox({
 
 async function downloadSingleWithFilter(p: GalleryPhoto): Promise<void> {
   try {
-    console.log('[Download] Starting download with filter:', p.filter);
-    const blob = await bakeFilterToBlobViaDom(p.url, p.filter, p.id, p.takenAt);
-    console.log('[Download] Blob created, size:', blob.size);
-    
-    // En móvil, usa Web Share API para guardar directo a Fotos
-    if (navigator.share && navigator.canShare) {
-      const file = new File([blob], `rollo-${p.id}.jpg`, { type: 'image/jpeg' });
-      
-      if (navigator.canShare({ files: [file] })) {
-        try {
-          await navigator.share({
-            files: [file],
-            title: 'Rollo Photo',
-          });
-          console.log('[Download] Shared successfully via Web Share API');
-          return;
-        } catch (shareErr) {
-          // Si el usuario cancela el share, continuar con download normal
-          if ((shareErr as Error).name !== 'AbortError') {
-            console.warn('[Download] Web Share failed, falling back to download', shareErr);
-          } else {
-            return; // Usuario canceló, no hacer nada más
-          }
-        }
-      }
-    }
-    
-    // Fallback: download tradicional para desktop
+    const blob = await bakeFilterToBlob(p.url, p.filter, p.id, p.takenAt);
+    // Always use a plain <a download> link. The Web Share API was unreliable
+    // here because bakeFilterToBlob takes 1-3s, which on iOS Safari breaks
+    // the synchronous user-gesture context that navigator.share requires.
+    // <a download> works consistently: desktop → Downloads folder, iOS →
+    // Files (user can save to Photos from there).
     const objectUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = objectUrl;
@@ -555,7 +540,8 @@ async function downloadSingleWithFilter(p: GalleryPhoto): Promise<void> {
     document.body.appendChild(a);
     a.click();
     a.remove();
-    URL.revokeObjectURL(objectUrl);
+    // Give the browser a tick to start the download before revoking the URL.
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
   } catch (err) {
     console.error('[Gallery] download with filter failed', err);
   }
