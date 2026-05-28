@@ -24,7 +24,10 @@ type TrackCapabilitiesExt = MediaTrackCapabilities & {
 
 const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 4;
-const ZOOM_PRESETS = [0.5, 1, 2] as const;
+// 0.5× requires an ultra-wide lens, which front-facing selfies cameras
+// don't have. Selfie mode therefore drops it from the preset row.
+const ZOOM_PRESETS_REAR = [0.5, 1, 2] as const;
+const ZOOM_PRESETS_FRONT = [1, 2] as const;
 
 export default function Camera({
   facing = 'environment',
@@ -398,7 +401,7 @@ export default function Camera({
           className="absolute left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full bg-black/40 p-1 backdrop-blur-lg"
           style={{ bottom: 'max(env(safe-area-inset-bottom, 0px) + 105px, 105px)' }}
         >
-          {ZOOM_PRESETS.map((preset) => {
+          {(isFrontCamera ? ZOOM_PRESETS_FRONT : ZOOM_PRESETS_REAR).map((preset) => {
             const isActive = Math.abs(zoom - preset) < 0.05;
             return (
               <button

@@ -8,14 +8,15 @@ interface Props {
   children: React.ReactNode;
 }
 
-// Animation timings & curves. Open is a touch longer and uses Apple's
-// UIView curve (the same easing iOS uses for sheets) for a soft glide-in.
-// Close is shorter — modals dismiss snappier than they appear. Snap-back
-// after a partial drag uses a gentle overshoot for a natural settle.
-const OPEN_MS = 460;
-const CLOSE_MS = 320;
-const SNAP_MS = 280;
-const OPEN_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
+// Animation timings & curves. Open uses Quart Out for a buttery glide —
+// fast acceleration into a very long, gentle ease-out so the sheet drifts
+// into place instead of arriving. Close stays snappier because modals
+// dismiss faster than they appear. Snap-back after a partial drag uses
+// the same Quart Out for consistency.
+const OPEN_MS = 540;
+const CLOSE_MS = 340;
+const SNAP_MS = 320;
+const OPEN_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
 const CLOSE_EASE = 'cubic-bezier(0.4, 0, 0.6, 1)';
 const SNAP_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
 
