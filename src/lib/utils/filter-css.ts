@@ -81,19 +81,22 @@ export function applyDownloadFilter(
     const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     // Luminance grain — heavier for retro (35mm-ish), subtle for vintage
     // and special so the digicam look stays clean.
-    const grain = filter === 'retro' ? 0.10 : filter === 'vintage' ? 0.10 : 0.04;
+    const grain = filter === 'retro' ? 0.10 : filter === 'vintage' ? 0.14 : 0.04;
     applyGrain(imgData.data, grain);
     // Coloured CCD chroma noise — only the noisier presets.
     if (filter === 'retro' || filter === 'vintage') {
-      applyChromaNoise(imgData.data, filter === 'retro' ? 0.05 : 0.05);
+      applyChromaNoise(imgData.data, filter === 'retro' ? 0.05 : 0.07);
     }
     ctx.putImageData(imgData, 0, 0);
   }
 
-  // Step 5: vignette (retro only) — tight corner darkening for the
-  // cinematic, less-polished feel.
+  // Step 5: vignette. Retro gets a tight cinematic one; vintage gets a
+  // subtler version so the corners darken just enough for a film feel
+  // without the heavy "lo-fi" look retro has.
   if (filter === 'retro') {
     applyVignette(ctx, canvas, 0.55, 'rgba(15, 10, 25, 1)');
+  } else if (filter === 'vintage') {
+    applyVignette(ctx, canvas, 0.30, 'rgba(20, 15, 10, 1)');
   }
 }
 

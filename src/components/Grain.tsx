@@ -30,7 +30,7 @@ const FILTERS_WITH_GRAIN: FilterType[] = ['special', 'retro', 'vintage'];
 // Vintage added at lower intensity than retro for a subtle CCD feel.
 const FILTERS_WITH_CHROMA_NOISE: FilterType[] = ['retro', 'vintage'];
 // Filters that get a subtle vignette overlay on top.
-const FILTERS_WITH_VIGNETTE: FilterType[] = ['retro'];
+const FILTERS_WITH_VIGNETTE: FilterType[] = ['retro', 'vintage'];
 
 interface Props {
   filter: FilterType | null | undefined;
@@ -62,7 +62,7 @@ export function Grain({ filter, opacity = 0.55 }: Props) {
   //   special → as-passed (caller decides)
   const grainOpacity =
     filter === 'retro' ? Math.min(opacity * 1.55, 1)
-    : filter === 'vintage' ? Math.min(opacity * 1.4, 1)
+    : filter === 'vintage' ? Math.min(opacity * 1.7, 1)
     : opacity;
 
   return (
@@ -103,11 +103,13 @@ export function Grain({ filter, opacity = 0.55 }: Props) {
           aria-hidden
           className="pointer-events-none absolute inset-0"
           style={{
-            // Cinematic-tight vignette: center stays clean to ~40%, then
-            // ramps into a darker corner (alpha 0.75) for more film/movie
-            // feel without crushing the subject.
+            // Cinematic vignette. Retro is tighter and a touch more violet;
+            // vintage is softer and warm-toned so it just adds a film-edge
+            // darkening without crushing the cool color science.
             background:
-              'radial-gradient(ellipse at center, transparent 40%, rgba(15,10,25,0.75) 100%)',
+              filter === 'vintage'
+                ? 'radial-gradient(ellipse at center, transparent 55%, rgba(20,15,10,0.45) 100%)'
+                : 'radial-gradient(ellipse at center, transparent 40%, rgba(15,10,25,0.75) 100%)',
             mixBlendMode: 'multiply',
           }}
         />
