@@ -14,7 +14,7 @@ const COOL_CCD_MATRIX = [
 const RETRO_TONE_MATRIX = [
   1.20, 0,    0,    0, 0,
   0,    0.80, 0,    0, 0.05,
-  0,    0,    0.95, 0, 0.25,
+  0,    0,    0.95, 0, 0.30,
   0,    0,    0,    1, 0,
 ];
 const FUJI_TONE_MATRIX = [

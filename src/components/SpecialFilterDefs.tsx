@@ -98,7 +98,7 @@ export function SpecialFilterDefs() {
             values="
               1.20 0    0    0    0
               0    0.80 0    0    0.05
-              0    0    0.95 0    0.25
+              0    0    0.95 0    0.30
               0    0    0    1    0
             "
           />
