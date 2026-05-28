@@ -407,10 +407,9 @@ export default function Camera({
         autoPlay
         playsInline
         muted
-        // iOS Safari pops a play/pause overlay on any <video> the user taps
-        // unless we explicitly disable controls AND picture-in-picture AND
-        // remote playback. Also `webkit-playsinline` keeps it inline on
-        // very old WebKit builds.
+        // iOS Safari pops a play/pause overlay any time it thinks the user
+        // tapped a <video> element directly. The opt-outs help, but the
+        // bulletproof fix is the transparent gesture overlay below.
         controls={false}
         // @ts-expect-error these are valid HTML attrs not in React's types
         disablePictureInPicture="true"
@@ -418,16 +417,31 @@ export default function Camera({
         controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
         x-webkit-airplay="deny"
         webkit-playsinline="true"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
         className="absolute inset-0 h-full w-full object-cover"
         style={{
           transform: videoTransform || undefined,
           display: capturedImage ? 'none' : 'block',
           filter: filterCss(filter, photoId),
+          // Disable pointer events on the video itself so iOS Safari can
+          // never detect a "media tap" and overlay its pause control.
+          // All gestures are caught by the sibling div below.
+          pointerEvents: 'none',
         }}
       />
+
+      {/* Transparent gesture surface — sits above the video, below the UI
+          controls. iOS only shows the play/pause overlay when the touch
+          target IS the <video>, so catching touches on a separate div
+          prevents that control from ever appearing. */}
+      {!capturedImage && (
+        <div
+          className="absolute inset-0"
+          style={{ zIndex: 5 }}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        />
+      )}
 
       <canvas ref={canvasRef} style={{ display: 'none' }} />
 
