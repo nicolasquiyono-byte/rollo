@@ -64,6 +64,12 @@ export default function Camera({
   // lands or the finger drifts more than ~10px.
   const tapRef = useRef<{ time: number; x: number; y: number; moved: boolean } | null>(null);
   const lastTapTime = useRef(0);
+  // Pending single-tap focus action: a single tap waits 300ms to confirm
+  // it isn't actually the first half of a double-tap before triggering.
+  const focusTimerRef = useRef<number | null>(null);
+  // Visible focus indicator at the tap point. `key` lets us restart the
+  // CSS animation when the user taps a different spot quickly.
+  const [focusPoint, setFocusPoint] = useState<{ x: number; y: number; key: number } | null>(null);
 
   const isFrontCamera = facing === 'user';
 
@@ -221,11 +227,54 @@ export default function Camera({
     if (!tap || tap.moved || Date.now() - tap.time > 250) return;
     const now = Date.now();
     if (lastTapTime.current && now - lastTapTime.current < 300) {
+      // Double tap: cancel the pending single-tap focus and flip cameras.
       lastTapTime.current = 0;
+      if (focusTimerRef.current) {
+        window.clearTimeout(focusTimerRef.current);
+        focusTimerRef.current = null;
+      }
       onFlipCamera?.();
     } else {
       lastTapTime.current = now;
+      // Single tap: schedule the focus action 300ms later so a second tap
+      // (double-tap → flip) can cancel it first.
+      const tapX = tap.x;
+      const tapY = tap.y;
+      if (focusTimerRef.current) window.clearTimeout(focusTimerRef.current);
+      focusTimerRef.current = window.setTimeout(() => {
+        focusTimerRef.current = null;
+        focusAt(tapX, tapY);
+      }, 300);
     }
+  }
+
+  // Apply native single-shot focus at a point (when supported) AND show
+  // the on-screen indicator box at the tap position.
+  function focusAt(clientX: number, clientY: number) {
+    const video = videoRef.current;
+    if (!video) return;
+    const rect = video.getBoundingClientRect();
+    const localX = clientX - rect.left;
+    const localY = clientY - rect.top;
+    // Normalized 0..1 coordinates for pointsOfInterest.
+    const x = Math.max(0, Math.min(1, localX / rect.width));
+    const y = Math.max(0, Math.min(1, localY / rect.height));
+    setFocusPoint({ x: localX, y: localY, key: Date.now() });
+    // Native hardware focus on Chromium mobile. iOS Safari just gets the
+    // visual indicator — no track-level focus API exists there.
+    if (stream) {
+      const track = stream.getVideoTracks()[0];
+      try {
+        void track?.applyConstraints({
+          // @ts-expect-error pointsOfInterest/focusMode aren't typed
+          advanced: [{ focusMode: 'single-shot', pointsOfInterest: [{ x, y }] }],
+        });
+      } catch (e) {
+        console.warn('[Camera] focus failed', e);
+      }
+    }
+    // Clear the indicator after the CSS animation finishes.
+    window.setTimeout(() => setFocusPoint(null), 800);
   }
 
   // ---- Capture -----------------------------------------------------------
@@ -381,6 +430,17 @@ export default function Camera({
       />
 
       <canvas ref={canvasRef} style={{ display: 'none' }} />
+
+      {/* Tap-to-focus indicator — iOS-style yellow square that scales down
+          and fades out. `key` restarts the CSS animation on every tap. */}
+      {!capturedImage && focusPoint && (
+        <div
+          key={focusPoint.key}
+          aria-hidden="true"
+          className="animate-focus-box pointer-events-none absolute z-20 h-16 w-16 rounded-md border-2 border-yellow-300"
+          style={{ left: focusPoint.x, top: focusPoint.y }}
+        />
+      )}
 
       {/* White overlay used for the front-camera "screen flash" — covers
           the whole viewport for ~180ms while the picture is being taken so

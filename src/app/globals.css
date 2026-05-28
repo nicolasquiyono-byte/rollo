@@ -47,3 +47,23 @@ button,
 .noise-bg {
   background: linear-gradient(135deg, #e85d04 0%, #f4a859 100%);
 }
+
+/* Camera tap-to-focus indicator: a yellow box that scales down quickly,
+   holds briefly, then fades — same affordance iOS shows. */
+@keyframes focus-box {
+  0% {
+    transform: translate(-50%, -50%) scale(1.5);
+    opacity: 0;
+  }
+  20% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(0.95);
+    opacity: 0;
+  }
+}
+.animate-focus-box {
+  animation: focus-box 700ms ease-out forwards;
+}
