@@ -290,10 +290,12 @@ export function GalleryHub({
         )}
       </main>
 
-      {lightboxPhoto && !locked && (
+      {lightboxPhoto && (
         <Lightbox
           photos={visiblePhotos}
           activeIndex={active!}
+          locked={locked}
+          revealsAt={revealsAt}
           onClose={() => setActive(null)}
           onPrev={() => setActive((i) => (i === null ? null : (i - 1 + visiblePhotos.length) % visiblePhotos.length))}
           onNext={() => setActive((i) => (i === null ? null : (i + 1) % visiblePhotos.length))}
@@ -479,7 +481,10 @@ function GuestSummaryCards({
     <div className="mt-6 grid grid-cols-2 gap-3">
       {summaries.map((g) => {
         const cover = covers.get(g.id);
-        const canOpen = !locked && g.count > 0;
+        // Locked-but-with-photos is still tappable now: it opens the
+        // lightbox so the user can swipe through blurred previews and
+        // see the reveal countdown.
+        const canOpen = g.count > 0;
         // Pick what backs the card visually:
         //   1. A real photo by the guest (best — actually shows their POV)
         //   2. The rollo's cover image (so we still get a *real* image
@@ -501,7 +506,7 @@ function GuestSummaryCards({
                 src={bgUrl}
                 alt=""
                 className={`h-full w-full object-cover ${
-                  locked ? 'scale-105 opacity-80 blur-lg' : ''
+                  locked ? 'scale-105 opacity-100 blur-md saturate-125' : ''
                 }`}
                 style={
                   !locked && cover
@@ -572,7 +577,7 @@ function LockedPlaceholders({ coverImageUrl }: { coverImageUrl: string | null })
         >
           {coverImageUrl ? (
             <div
-              className="absolute inset-0 scale-105 opacity-85 blur-lg"
+              className="absolute inset-0 scale-105 opacity-100 blur-md saturate-125"
               style={{
                 backgroundImage: `url(${coverImageUrl})`,
                 backgroundSize: 'cover',
@@ -638,8 +643,7 @@ function PhotoGrid({
       {photos.map((p, i) => (
         <button
           key={p.id}
-          onClick={locked ? undefined : () => onOpen(i)}
-          disabled={locked}
+          onClick={() => onOpen(i)}
           className="relative aspect-[3/4] overflow-hidden rounded-2xl bg-rollo-surface"
           aria-label={p.by ? `${es.gallery.by} ${p.by}` : 'foto'}
         >
@@ -648,7 +652,7 @@ function PhotoGrid({
             src={p.url}
             alt=""
             className={`h-full w-full object-cover ${
-              locked ? 'scale-105 opacity-80 blur-lg' : ''
+              locked ? 'scale-105 opacity-100 blur-md saturate-125' : ''
             }`}
             style={locked ? undefined : { filter: filterCss(p.filter, p.id) }}
             loading="lazy"
@@ -680,12 +684,16 @@ function PhotoGrid({
 function Lightbox({
   photos,
   activeIndex,
+  locked,
+  revealsAt,
   onClose,
   onPrev,
   onNext,
 }: {
   photos: SheetPhoto[];
   activeIndex: number;
+  locked: boolean;
+  revealsAt: string | null;
   onClose: () => void;
   onPrev: () => void;
   onNext: () => void;
@@ -706,8 +714,10 @@ function Lightbox({
   }, [onPrev, onNext, onClose]);
 
   // Pre-bake so the share/download click is synchronous (iOS gesture).
+  // Skip when locked — we don't allow downloads in that state and the bake
+  // would just waste CPU on a hidden image.
   useEffect(() => {
-    if (!current) return;
+    if (!current || locked) return;
     let cancelled = false;
     setPreparedBlob(null);
     bakeFilterToBlob(current.url, current.filter, current.id, current.takenAt)
@@ -718,7 +728,7 @@ function Lightbox({
     return () => {
       cancelled = true;
     };
-  }, [current]);
+  }, [current, locked]);
 
   function handleTouchStart(e: React.TouchEvent) {
     touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
@@ -747,26 +757,32 @@ function Lightbox({
         <span className="text-xs text-rollo-muted">
           {activeIndex + 1} / {photos.length}
         </span>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            if (downloading) return;
-            if (preparedBlob) {
-              shareOrDownloadBlob(preparedBlob, current);
-              return;
-            }
-            setDownloading(true);
-            void downloadSingleWithFilter(current).finally(() => setDownloading(false));
-          }}
-          disabled={downloading}
-          className="text-sm text-rollo-ink underline disabled:opacity-50"
-        >
-          {downloading ? 'Descargando…' : !preparedBlob ? 'Preparando…' : 'Descargar'}
-        </button>
+        {locked ? (
+          <span className="flex items-center gap-1.5 text-xs text-white/70">
+            <Lock size={12} /> Aún sin revelar
+          </span>
+        ) : (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (downloading) return;
+              if (preparedBlob) {
+                shareOrDownloadBlob(preparedBlob, current);
+                return;
+              }
+              setDownloading(true);
+              void downloadSingleWithFilter(current).finally(() => setDownloading(false));
+            }}
+            disabled={downloading}
+            className="text-sm text-rollo-ink underline disabled:opacity-50"
+          >
+            {downloading ? 'Descargando…' : !preparedBlob ? 'Preparando…' : 'Descargar'}
+          </button>
+        )}
       </div>
 
       <div
-        className="flex flex-1 items-center justify-center px-4 touch-pan-y select-none"
+        className="relative flex flex-1 items-center justify-center px-4 touch-pan-y select-none"
         onClick={(e) => e.stopPropagation()}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
@@ -779,12 +795,21 @@ function Lightbox({
           src={current.url}
           alt=""
           draggable={false}
-          className="max-h-full max-w-full object-contain"
-          style={{ filter: filterCss(current.filter, current.id) }}
+          className={`max-h-full max-w-full object-contain ${
+            locked ? 'blur-xl scale-105 saturate-125' : ''
+          }`}
+          style={locked ? undefined : { filter: filterCss(current.filter, current.id) }}
         />
         <button onClick={onNext} className="px-3 text-rollo-ink/60 hover:text-rollo-ink" aria-label="siguiente">
           ›
         </button>
+
+        {/* Locked overlay: centred countdown that ticks toward reveals_at */}
+        {locked && revealsAt && (
+          <div className="pointer-events-none absolute inset-0 grid place-items-center">
+            <RevealCountdown revealsAt={revealsAt} />
+          </div>
+        )}
       </div>
 
       <div
@@ -836,4 +861,33 @@ async function downloadSingleWithFilter(p: SheetPhoto): Promise<void> {
   } catch (err) {
     console.error('[GalleryHub] download failed', err);
   }
+}
+
+/**
+ * Live countdown card shown over a blurred locked photo in the lightbox.
+ * Ticks every second; switches to "Cualquier momento" once the target
+ * passes (the page-level locked state should flip too on the next
+ * router refresh / focus).
+ */
+function RevealCountdown({ revealsAt }: { revealsAt: string }) {
+  const [text, setText] = useState('');
+  useEffect(() => {
+    function tick() {
+      const parts = diffParts(revealsAt);
+      if (parts.done) setText('cualquier momento');
+      else setText(formatCountdown(parts, es.countdown));
+    }
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [revealsAt]);
+  return (
+    <div className="rounded-3xl bg-black/55 px-6 py-5 text-center text-white backdrop-blur-md">
+      <Lock size={20} className="mx-auto opacity-80" />
+      <p className="mt-2 text-xs uppercase tracking-[0.2em] text-white/70">
+        Se revela en
+      </p>
+      <p className="mt-1 font-display text-3xl leading-none">{text || '…'}</p>
+    </div>
+  );
 }
