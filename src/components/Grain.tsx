@@ -57,12 +57,11 @@ export function Grain({ filter, opacity = 0.55 }: Props) {
   if (!needsGrain && !needsChromaNoise && !needsVignette) return null;
 
   // Per-filter grain intensity:
-  //   retro   → +30% (emulates Powershot CCD sensor noise, roughens skin)
-  //   vintage → +10% (bumped from 0.95 → 1.1 — visible film texture across
-  //                   the whole image, more present than the default)
+  //   retro   → +55% (heavy cinematic film grain — chunkier than digital)
+  //   vintage → +10% (visible film texture across the image)
   //   special → as-passed (caller decides)
   const grainOpacity =
-    filter === 'retro' ? Math.min(opacity * 1.3, 1)
+    filter === 'retro' ? Math.min(opacity * 1.55, 1)
     : filter === 'vintage' ? Math.min(opacity * 1.1, 1)
     : opacity;
 
@@ -104,10 +103,11 @@ export function Grain({ filter, opacity = 0.55 }: Props) {
           aria-hidden
           className="pointer-events-none absolute inset-0"
           style={{
-            // Tightened (45% transparent center → harsher edge darkening) and
-            // bumped alpha 0.45 → 0.6 for less polished Powershot vignette.
+            // Cinematic-tight vignette: center stays clean to ~40%, then
+            // ramps into a darker corner (alpha 0.75) for more film/movie
+            // feel without crushing the subject.
             background:
-              'radial-gradient(ellipse at center, transparent 45%, rgba(20,10,30,0.6) 100%)',
+              'radial-gradient(ellipse at center, transparent 40%, rgba(15,10,25,0.75) 100%)',
             mixBlendMode: 'multiply',
           }}
         />

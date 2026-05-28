@@ -217,6 +217,63 @@ export function applyColorMatrix(data: Uint8ClampedArray, m: number[]): void {
 }
 
 /**
+ * Random luminance grain (uniform noise added to RGB). `strength` is 0–1,
+ * where 0.05 ≈ subtle film grit, 0.10 ≈ heavy 35 mm grain. Adds the same
+ * delta to R/G/B per pixel so the grain reads as monochrome (not coloured).
+ */
+export function applyGrain(data: Uint8ClampedArray, strength: number): void {
+  const range = strength * 255;
+  for (let i = 0; i < data.length; i += 4) {
+    const n = (Math.random() - 0.5) * range;
+    data[i] = clamp(data[i] + n);
+    data[i + 1] = clamp(data[i + 1] + n);
+    data[i + 2] = clamp(data[i + 2] + n);
+  }
+}
+
+/**
+ * Coloured "chroma" sensor noise — independent R and B perturbation with
+ * suppressed G, matching the magenta/cyan speckle of cheap early-2000s
+ * CCDs. `strength` is 0–1.
+ */
+export function applyChromaNoise(data: Uint8ClampedArray, strength: number): void {
+  const range = strength * 255;
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = clamp(data[i] + (Math.random() - 0.5) * range * 1.5);
+    data[i + 1] = clamp(data[i + 1] + (Math.random() - 0.5) * range * 0.4);
+    data[i + 2] = clamp(data[i + 2] + (Math.random() - 0.5) * range * 1.5);
+  }
+}
+
+/**
+ * Radial vignette — darkens corners with a colored multiply gradient.
+ * `intensity` 0–1 controls the corner darkness. `tint` is the corner color
+ * (default near-black with a slight purple cast for a cinematic feel).
+ */
+export function applyVignette(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  intensity = 0.55,
+  tint = 'rgba(15, 10, 25, 1)',
+): void {
+  const w = canvas.width;
+  const h = canvas.height;
+  const innerR = Math.min(w, h) * 0.45;
+  const outerR = Math.max(w, h) * 0.75;
+  const grad = ctx.createRadialGradient(w / 2, h / 2, innerR, w / 2, h / 2, outerR);
+  grad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+  grad.addColorStop(1, tint);
+  const prevOp = ctx.globalCompositeOperation;
+  const prevAlpha = ctx.globalAlpha;
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.globalAlpha = intensity;
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+  ctx.globalCompositeOperation = prevOp;
+  ctx.globalAlpha = prevAlpha;
+}
+
+/**
  * CCD-style highlight bloom: clones the canvas, blurs it heavily, scales it
  * down (so only the brighter areas glow visibly), and screen-blends it onto
  * the original. Mirrors what the SVG `#ccd-bloom` filter does in the DOM.

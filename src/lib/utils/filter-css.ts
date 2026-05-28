@@ -1,6 +1,13 @@
 import type { FilterType } from '../../types';
 import { formatStampDate, ghostifyStamp, splitStamp } from '@/lib/utils/format-stamp';
-import { applyBloom, applyColorMatrix, applyCssFilterToCanvas } from '@/lib/utils/filter-pixels';
+import {
+  applyBloom,
+  applyChromaNoise,
+  applyColorMatrix,
+  applyCssFilterToCanvas,
+  applyGrain,
+  applyVignette,
+} from '@/lib/utils/filter-pixels';
 
 // SVG color matrices — mirrored from SpecialFilterDefs.tsx so the download
 // applies the exact same color science as on-screen. Format: 4×5 matrix
@@ -64,6 +71,29 @@ export function applyDownloadFilter(
   // Step 3: CCD bloom (vintage only) — soft halation on highlights.
   if (filter === 'vintage') {
     applyBloom(ctx, canvas, 3, 0.35);
+  }
+
+  // Step 4: film grit / texture — bakes the same look the Grain overlay
+  // provides on screen into the downloaded JPEG. Without this the picture
+  // shown in the gallery has grain, but the file saved to the device is
+  // clean — losing the cinematic feel.
+  if (filter === 'retro' || filter === 'vintage' || filter === 'special') {
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    // Luminance grain — heavier for retro (35mm-ish), subtle for vintage
+    // and special so the digicam look stays clean.
+    const grain = filter === 'retro' ? 0.10 : filter === 'vintage' ? 0.06 : 0.04;
+    applyGrain(imgData.data, grain);
+    // Coloured CCD chroma noise — only the noisier presets.
+    if (filter === 'retro' || filter === 'vintage') {
+      applyChromaNoise(imgData.data, filter === 'retro' ? 0.05 : 0.035);
+    }
+    ctx.putImageData(imgData, 0, 0);
+  }
+
+  // Step 5: vignette (retro only) — tight corner darkening for the
+  // cinematic, less-polished feel.
+  if (filter === 'retro') {
+    applyVignette(ctx, canvas, 0.55, 'rgba(15, 10, 25, 1)');
   }
 }
 
