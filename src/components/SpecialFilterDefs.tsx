@@ -80,23 +80,23 @@ export function SpecialFilterDefs() {
           <feBlend in="weakBlur" in2="SourceGraphic" mode="screen" />
         </filter>
 
-        {/* RETRO — Tumblr 2010 / cheap compact camera, less polished
-            Bigger R/G negative biases crush blacks harder. R multiplier bumped
-            for stronger pink push in highlights/skin. Blue lift toned down
-            (0.04 → 0.025) so the crush dominates, not the HDR-ish lift.
+        {/* RETRO — 2010 Tumblr / cheap compact, heavy pink/magenta wash
+            Pushed harder toward magenta to match the washed-pink Valencia-
+            style reference. R boost stronger, G cut deeper, B lifted in
+            shadows so darks gain a slight blue tint (purple feel overall).
             Pixel breakdown:
-              Black (0,0,0)   → (0, 0, 0.025)         crushed near-pure-black
-              Shadow (0.15)   → (0.09, 0.07, 0.16)    blue-purple but darker
-              Mid (0.5)       → (0.50, 0.41, 0.48)    magenta-pink mids
-              Highlight (1,1,1) → (1, 0.88, 0.93)     pinker cream highlights
+              Black (0,0,0)     → (0,    0,    0.05) faintly blue-purple darks
+              Shadow (0.15)     → (0.16, 0.10, 0.19) blue-magenta shadows
+              Mid (0.5)         → (0.59, 0.39, 0.52) magenta-pink mids
+              Highlight (1,1,1) → (1,    0.81, 0.99) heavy pink wash on whites
         */}
         <filter id="retro-tone" colorInterpolationFilters="sRGB">
           <feColorMatrix
             type="matrix"
             values="
-              1.15 0    0    0    -0.08
-              0    0.95 0    0    -0.07
-              0    0    0.9  0     0.025
+              1.18 0    0    0    -0.03
+              0    0.85 0    0    -0.04
+              0    0    0.95 0     0.05
               0    0    0    1     0
             "
           />
