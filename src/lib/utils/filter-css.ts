@@ -24,13 +24,13 @@ interface FilterDef {
 // added cool hue baseline since canvas filter doesn't resolve url() refs.
 // Sepia is gone — the cool color shift comes from the SVG colorMatrix.
 const VINTAGE_BASE = {
-  saturate: 1.35,
-  contrast: 1.25,
-  brightness: 1.02,
+  saturate: 1.18,
+  contrast: 1.10,
+  brightness: 1.01,
   hueRotateBase: 0,
-  blur: 0.6,
+  blur: 0.3,
 };
-const VINTAGE_CANVAS_BASE_HUE = 5;
+const VINTAGE_CANVAS_BASE_HUE = 3;
 
 function vintageChainFromValues(
   contrast: number,
@@ -63,8 +63,8 @@ const BW = 'grayscale(1) contrast(1.1)';
 // SVG does: R*1.15-0.08, G*0.95-0.07, B*0.9+0.025
 // This creates: magenta/pink highlights + crushed blue-purple shadows
 // CSS approximation: stronger magenta push + crushed blacks + subtle blue lift
-const RETRO_DOM = 'url(#retro-tone) saturate(1.15) contrast(1.2) brightness(1.02) blur(0.3px)';
-const RETRO_CANVAS = 'saturate(1.25) contrast(1.35) brightness(0.98) sepia(0.22) hue-rotate(325deg) blur(0.3px)';
+const RETRO_DOM = 'url(#retro-tone) saturate(1.08) contrast(1.10) brightness(1.01) blur(0.2px)';
+const RETRO_CANVAS = 'saturate(1.10) contrast(1.15) brightness(1.0) sepia(0.10) hue-rotate(340deg) blur(0.2px)';
 
 const SPECIAL_DOM = 'url(#fuji-tone) saturate(0.92) contrast(0.85) brightness(1.04)';
 const SPECIAL_CANVAS = 'saturate(0.88) contrast(0.78) brightness(1.05) sepia(0.08) hue-rotate(-3deg)';
@@ -94,11 +94,11 @@ function seededRand(seed: number, salt: number): number {
 function vintageVariationFor(photoId: string, mode: 'dom' | 'canvas'): string {
   const seed = hashString(photoId);
   const baseHue = mode === 'dom' ? VINTAGE_BASE.hueRotateBase : VINTAGE_CANVAS_BASE_HUE;
-  const hue = baseHue + seededRand(seed, 1) * 8;
-  const bright = VINTAGE_BASE.brightness + seededRand(seed, 2) * 0.07;
-  const contrast = VINTAGE_BASE.contrast + seededRand(seed, 3) * 0.09;
-  const blur = VINTAGE_BASE.blur + Math.max(0, seededRand(seed, 4)) * 0.6;
-  const saturate = VINTAGE_BASE.saturate + seededRand(seed, 5) * 0.10;
+  const hue = baseHue + seededRand(seed, 1) * 4;
+  const bright = VINTAGE_BASE.brightness + seededRand(seed, 2) * 0.035;
+  const contrast = VINTAGE_BASE.contrast + seededRand(seed, 3) * 0.045;
+  const blur = VINTAGE_BASE.blur + Math.max(0, seededRand(seed, 4)) * 0.3;
+  const saturate = VINTAGE_BASE.saturate + seededRand(seed, 5) * 0.05;
   return vintageChainFromValues(contrast, bright, hue, blur, saturate, mode);
 }
 
