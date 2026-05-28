@@ -80,24 +80,25 @@ export function SpecialFilterDefs() {
           <feBlend in="weakBlur" in2="SourceGraphic" mode="screen" />
         </filter>
 
-        {/* RETRO — 2010 Tumblr / cheap compact, heavy pink/magenta wash
-            Pushed harder toward magenta to match the washed-pink Valencia-
-            style reference. R boost stronger, G cut deeper, B lifted in
-            shadows so darks gain a slight blue tint (purple feel overall).
+        {/* RETRO — 2010 golden-Tumblr / Indie Sleaze, warm cream wash
+            Warm/peach overall (cream highlights, golden midtones) with a
+            subtle rosy bias. B channel cut for the sepia warmth, R/G kept
+            close together so highlights go cream (not pink). Black lift
+            keeps the washed-out low-contrast film look.
             Pixel breakdown:
-              Black (0,0,0)     → (0,    0,    0.05) faintly blue-purple darks
-              Shadow (0.15)     → (0.16, 0.10, 0.19) blue-magenta shadows
-              Mid (0.5)         → (0.59, 0.39, 0.52) magenta-pink mids
-              Highlight (1,1,1) → (1,    0.81, 0.99) heavy pink wash on whites
+              Black (0,0,0)     → (0.02, 0.02, 0.08) lifted, faint warm gray
+              Shadow (0.15)     → (0.19, 0.16, 0.20) warm muted shadows
+              Mid (0.5)         → (0.57, 0.48, 0.47) warm peach mids
+              Highlight (1,1,1) → (1.00, 0.94, 0.86) cream/peach highlights
         */}
         <filter id="retro-tone" colorInterpolationFilters="sRGB">
           <feColorMatrix
             type="matrix"
             values="
-              1.18 0    0    0    -0.03
-              0    0.85 0    0    -0.04
-              0    0    0.95 0     0.05
-              0    0    0    1     0
+              1.10 0    0    0    0.02
+              0    0.92 0    0    0.02
+              0    0    0.78 0    0.08
+              0    0    0    1    0
             "
           />
         </filter>

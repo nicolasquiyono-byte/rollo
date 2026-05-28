@@ -63,8 +63,8 @@ const BW = 'grayscale(1) contrast(1.1)';
 // SVG does: R*1.15-0.08, G*0.95-0.07, B*0.9+0.025
 // This creates: magenta/pink highlights + crushed blue-purple shadows
 // CSS approximation: stronger magenta push + crushed blacks + subtle blue lift
-const RETRO_DOM = 'url(#retro-tone) saturate(1.0) contrast(0.95) brightness(1.05) blur(0.3px)';
-const RETRO_CANVAS = 'saturate(1.0) contrast(0.95) brightness(1.05) sepia(0.30) hue-rotate(320deg) blur(0.3px)';
+const RETRO_DOM = 'url(#retro-tone) saturate(1.05) contrast(0.95) brightness(1.03) blur(0.3px)';
+const RETRO_CANVAS = 'saturate(1.05) contrast(0.95) brightness(1.03) sepia(0.40) hue-rotate(350deg) blur(0.3px)';
 
 const SPECIAL_DOM = 'url(#fuji-tone) saturate(0.92) contrast(0.85) brightness(1.04)';
 const SPECIAL_CANVAS = 'saturate(0.88) contrast(0.78) brightness(1.05) sepia(0.08) hue-rotate(-3deg)';
