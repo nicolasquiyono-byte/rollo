@@ -358,6 +358,17 @@ export default function Camera({
         autoPlay
         playsInline
         muted
+        // iOS Safari pops a play/pause overlay on any <video> the user taps
+        // unless we explicitly disable controls AND picture-in-picture AND
+        // remote playback. Also `webkit-playsinline` keeps it inline on
+        // very old WebKit builds.
+        controls={false}
+        // @ts-expect-error these are valid HTML attrs not in React's types
+        disablePictureInPicture="true"
+        disableRemotePlayback
+        controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
+        x-webkit-airplay="deny"
+        webkit-playsinline="true"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
