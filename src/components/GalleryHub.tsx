@@ -364,11 +364,14 @@ function Hero({
         <div className="absolute inset-0 bg-gradient-to-b from-black/15 via-black/55 to-black" />
       </div>
 
-      {/* Top-left back button */}
+      {/* Top-left back button. z-20 (above the z-10 content div) — the
+          content div spans the full header even though it pads itself
+          down, so without a higher z-index its transparent padding
+          intercepts clicks on this absolutely-positioned button. */}
       <button
         onClick={onBack}
         aria-label="Atrás"
-        className="absolute left-4 z-10 grid h-11 w-11 place-items-center rounded-2xl bg-black/30 text-white backdrop-blur transition active:scale-95"
+        className="absolute left-4 z-20 grid h-11 w-11 place-items-center rounded-2xl bg-black/30 text-white backdrop-blur transition active:scale-95"
         style={{ top: 'max(env(safe-area-inset-top, 0px) + 16px, 16px)' }}
       >
         <ArrowLeft size={20} />
