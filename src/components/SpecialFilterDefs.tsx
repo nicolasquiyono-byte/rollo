@@ -80,25 +80,26 @@ export function SpecialFilterDefs() {
           <feBlend in="weakBlur" in2="SourceGraphic" mode="screen" />
         </filter>
 
-        {/* RETRO — 2010 Instagram Valencia / Earlybird split-tone
-            Warm pink-peach in highlights/skin + teal-cyan in shadows/sky.
-            Achieved by boosting R, slightly cutting G with a lift (cool
-            areas go greenish), heavy B cut with a strong lift (pure blues
-            desaturate into teal). Faded "washed" look from the lifts.
+        {/* RETRO — 2010 lo-fi heavy yellow wash + magenta shadows
+            Extreme version: blown-out cream-yellow highlights, magenta-
+            pink mids/shadows, faded faux-light-leak feel. Heavy B cut so
+            anything bright drifts to yellow-cream; lifted shadows pick up
+            the R bias and go pink-purple. Greens stay muted (slight cut +
+            lift) for that washed digicam feel.
             Pixel breakdown:
-              Black (0,0,0)         → (0.03, 0.04, 0.08) teal-warm lifted
-              Pure blue (0,0,1)     → (0.03, 0.04, 0.73) desaturated teal
-              Sky cyan (0.5,0.7,1)  → (0.61, 0.71, 0.73) faded greenish-white
-              Skin (0.85,0.7,0.6)   → (1.00, 0.71, 0.47) warm pink-peach
-              White (1,1,1)         → (1.00, 0.99, 0.73) cream-pink highlights
+              Black (0,0,0)        → (0.05, 0.05, 0.10) pink-purple lift
+              Pure blue (0,0,1)    → (0.05, 0.05, 0.65) desaturated dirty teal
+              Mid gray (0.5)       → (0.65, 0.51, 0.38) warm peach mids
+              Skin (0.85,0.7,0.6)  → (1.00, 0.69, 0.43) warm pink-peach
+              White (1,1,1)        → (1.00, 0.97, 0.65) heavy cream-yellow
         */}
         <filter id="retro-tone" colorInterpolationFilters="sRGB">
           <feColorMatrix
             type="matrix"
             values="
-              1.15 0    0    0    0.03
-              0    0.95 0    0    0.04
-              0    0    0.65 0    0.08
+              1.20 0    0    0    0.05
+              0    0.92 0    0    0.05
+              0    0    0.55 0    0.10
               0    0    0    1    0
             "
           />
