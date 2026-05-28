@@ -287,24 +287,30 @@ export default function CameraPage() {
         </button>
       </div>
 
-      {/* Bottom-left: shot counter pill */}
-      <div className="absolute bottom-[110px] left-5 z-10 rounded-2xl bg-[rgba(232,93,4,0.92)] p-3 text-center text-white shadow-lg shadow-black/30 backdrop-blur">
-        <Film size={14} className="mx-auto opacity-80" />
-        <div className="mt-0.5 font-display text-3xl font-medium leading-none">{shotsLeft}</div>
-        <div className="mt-1 text-[10px] uppercase tracking-wide opacity-90">
-          fotos restantes
-        </div>
+      {/* Top-center: compact shot counter pill (single line, out of the
+          bottom-toolbar zone so it doesn't crowd zoom pills / shutter). */}
+      <div
+        className="absolute left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-[rgba(232,93,4,0.92)] px-3 py-1.5 text-white shadow-lg shadow-black/30 backdrop-blur"
+        style={{ top: 'max(env(safe-area-inset-top), 20px)' }}
+      >
+        <Film size={12} className="opacity-80" />
+        <span className="font-display text-base font-medium leading-none">{shotsLeft}</span>
+        <span className="text-[10px] uppercase tracking-wide opacity-90">fotos</span>
       </div>
 
-      {/* Bottom-right: thumbnails stack */}
+      {/* Right side, below the QR/flip stack: smaller thumbnails so they
+          don't crowd the bottom toolbar (zoom pills + shutter + flash). */}
       {recentThumbs.length > 0 && (
-        <div className="absolute bottom-[110px] right-5 z-10 flex flex-col gap-2">
+        <div
+          className="absolute right-5 z-10 flex flex-col gap-2"
+          style={{ top: 'calc(max(env(safe-area-inset-top), 20px) + 108px)' }}
+        >
           {recentThumbs.map((t) => (
             <button
               key={t.id}
               onClick={() => router.push(`/rollo/${rollo.code}/galeria`)}
               aria-label="Ver galería"
-              className="relative h-[60px] w-[60px] overflow-hidden rounded-lg border-2 border-white shadow-lg shadow-black/40 transition active:scale-95 animate-fade-in"
+              className="relative h-[44px] w-[44px] overflow-hidden rounded-lg border-2 border-white shadow-lg shadow-black/40 transition active:scale-95 animate-fade-in"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img

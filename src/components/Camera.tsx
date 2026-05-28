@@ -297,23 +297,26 @@ export default function Camera({
 
       <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-      {/* Flash button — top right, only when hardware supports torch */}
+      {/* Flash button — bottom-left, paired with the shutter so it doesn't
+          collide with the page-level top-right stack (QR / flip camera). */}
       {!capturedImage && flashSupported && (
         <button
           onClick={toggleFlash}
           aria-label={flashOn ? 'Apagar flash' : 'Encender flash'}
-          className="absolute right-5 z-20 grid h-11 w-11 place-items-center rounded-full bg-black/40 text-white backdrop-blur-lg transition active:scale-90"
-          style={{ top: 'max(env(safe-area-inset-top, 0px) + 16px, 16px)' }}
+          className={`absolute left-5 z-20 grid h-11 w-11 place-items-center rounded-full backdrop-blur-lg transition active:scale-90 ${
+            flashOn ? 'bg-white text-black' : 'bg-black/40 text-white'
+          }`}
+          style={{ bottom: 'max(env(safe-area-inset-bottom, 0px) + 40px, 40px)' }}
         >
           <FlashIcon active={flashOn} />
         </button>
       )}
 
-      {/* Zoom preset pills — above the shutter */}
+      {/* Zoom preset pills — just above the shutter */}
       {!capturedImage && (
         <div
-          className="absolute left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/40 p-1 backdrop-blur-lg"
-          style={{ bottom: 'max(env(safe-area-inset-bottom, 0px) + 120px, 120px)' }}
+          className="absolute left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full bg-black/40 p-1 backdrop-blur-lg"
+          style={{ bottom: 'max(env(safe-area-inset-bottom, 0px) + 105px, 105px)' }}
         >
           {ZOOM_PRESETS.map((preset) => {
             const isActive = Math.abs(zoom - preset) < 0.05;
