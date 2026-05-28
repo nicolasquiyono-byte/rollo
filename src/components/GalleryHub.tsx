@@ -224,6 +224,7 @@ export function GalleryHub({
         peopleCount={peopleCount}
         countdown={countdown}
         locked={locked}
+        closesAt={closesAt}
         view={view}
         onSwitchView={(v) => {
           setView(v);
@@ -310,6 +311,7 @@ function Hero({
   peopleCount,
   countdown,
   locked,
+  closesAt,
   view,
   onSwitchView,
   onBack,
@@ -323,6 +325,7 @@ function Hero({
   peopleCount: number;
   countdown: string;
   locked: boolean;
+  closesAt: string;
   view: 'all' | 'by-guest';
   onSwitchView: (v: 'all' | 'by-guest') => void;
   onBack: () => void;
@@ -330,6 +333,12 @@ function Hero({
   onShowInvite: () => void;
   onShowMoments: () => void;
 }) {
+  // The camera button is disabled only when the rollo is closed for
+  // shooting (closes_at passed). Being "locked" just means the gallery
+  // is waiting on reveal_at — users can still take photos during that
+  // window if it overlaps the shooting period, or shoot whenever closes_at
+  // is in the future.
+  const closedForShooting = new Date(closesAt).getTime() <= Date.now();
   return (
     <header
       // `isolation: isolate` creates a new stacking context so the absolute-
@@ -380,7 +389,7 @@ function Hero({
         <div className="mt-5 flex items-center gap-3">
           <button
             onClick={onTakePhoto}
-            disabled={locked}
+            disabled={closedForShooting}
             className="flex flex-1 items-center justify-center gap-2 rounded-full bg-white py-4 text-base font-medium text-black shadow-lg shadow-black/20 transition active:scale-[0.99] disabled:opacity-50"
           >
             <CameraIcon size={20} />
