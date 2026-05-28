@@ -42,8 +42,12 @@ export default function Camera({
   // ---- Zoom / flash state -------------------------------------------------
   const [zoom, setZoom] = useState(1);
   const [zoomRange, setZoomRange] = useState<{ min: number; max: number } | null>(null);
+  // flashOn = "flash mode enabled" (intent). The actual torch only fires
+  // briefly during capturePhoto; for the front camera we light the subject
+  // with a full-screen white overlay (screen flash).
   const [flashOn, setFlashOn] = useState(false);
   const [flashSupported, setFlashSupported] = useState(false);
+  const [screenFlashing, setScreenFlashing] = useState(false);
   // When the hardware supports zoom we apply it via the track; otherwise we
   // fall back to a CSS transform scale on the <video> and a matching crop on
   // capture so the saved photo matches what the user framed.
@@ -150,21 +154,17 @@ export default function Camera({
     [stream, zoomRange],
   );
 
-  const toggleFlash = useCallback(async () => {
-    if (!stream || !flashSupported) return;
-    const track = stream.getVideoTracks()[0];
-    if (!track) return;
-    const next = !flashOn;
-    try {
-      await track.applyConstraints({
-        // @ts-expect-error torch isn't typed
-        advanced: [{ torch: next }],
-      });
-      setFlashOn(next);
-    } catch (e) {
-      console.warn('[Camera] flash toggle failed', e);
-    }
-  }, [stream, flashSupported, flashOn]);
+  // Flash mode toggle — just flips the intent state. The actual torch /
+  // screen-flash fires during capturePhoto, not while idle (otherwise it
+  // behaves like a flashlight instead of a camera flash).
+  const toggleFlash = useCallback(() => {
+    setFlashOn((v) => !v);
+  }, []);
+
+  // Whether we have ANY flash mechanism for the current camera: torch
+  // (rear, when hardware supports it) or screen-flash (front, always works
+  // since we just paint the screen white to illuminate the subject).
+  const flashAvailable = isFrontCamera || flashSupported;
 
   // ---- Pinch gesture ------------------------------------------------------
 
@@ -200,6 +200,7 @@ export default function Camera({
 
     setIsProcessing(true);
 
+    let torchTrack: MediaStreamTrack | null = null;
     try {
       const video = videoRef.current;
       const canvas = canvasRef.current;
@@ -210,6 +211,30 @@ export default function Camera({
       const height = video.videoHeight;
       canvas.width = width;
       canvas.height = height;
+
+      // ---- Flash, fired ONLY during this capture ---------------------------
+      if (flashOn) {
+        if (isFrontCamera) {
+          // Screen flash: paint the entire screen white and wait long enough
+          // for the camera to expose a brighter frame of the user's face.
+          setScreenFlashing(true);
+          await new Promise((r) => setTimeout(r, 180));
+        } else if (flashSupported && stream) {
+          // Real flash via the back-camera LED. ~200ms warmup is enough on
+          // most phones for the auto-exposure to settle on the lit frame.
+          torchTrack = stream.getVideoTracks()[0] ?? null;
+          try {
+            await torchTrack?.applyConstraints({
+              // @ts-expect-error torch isn't typed
+              advanced: [{ torch: true }],
+            });
+            await new Promise((r) => setTimeout(r, 200));
+          } catch (e) {
+            console.warn('[Camera] torch on failed', e);
+            torchTrack = null;
+          }
+        }
+      }
 
       // When we use CSS-scaled zoom (native isn't available), the saved image
       // would otherwise not be zoomed at all. Crop a center rect proportional
@@ -223,6 +248,7 @@ export default function Camera({
       } else {
         context.drawImage(video, 0, 0, width, height);
       }
+
 
       const originalBlob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob((blob) => {
@@ -247,6 +273,19 @@ export default function Camera({
     } catch (error) {
       console.error('[Camera] Error al capturar:', error);
     } finally {
+      // Tear down flash regardless of success/failure so the torch never
+      // gets stuck on and the white overlay never lingers.
+      setScreenFlashing(false);
+      if (torchTrack) {
+        try {
+          await torchTrack.applyConstraints({
+            // @ts-expect-error torch isn't typed
+            advanced: [{ torch: false }],
+          });
+        } catch {
+          // ignore
+        }
+      }
       setIsProcessing(false);
     }
   };
@@ -297,9 +336,18 @@ export default function Camera({
 
       <canvas ref={canvasRef} style={{ display: 'none' }} />
 
+      {/* White overlay used for the front-camera "screen flash" — covers
+          the whole viewport for ~180ms while the picture is being taken so
+          the camera exposes the subject's face under the bright screen. */}
+      {screenFlashing && (
+        <div className="pointer-events-none absolute inset-0 z-40 bg-white" aria-hidden="true" />
+      )}
+
       {/* Flash button — bottom-left, paired with the shutter so it doesn't
-          collide with the page-level top-right stack (QR / flip camera). */}
-      {!capturedImage && flashSupported && (
+          collide with the page-level top-right stack (QR / flip camera).
+          Available for front camera (screen flash) AND rear when torch is
+          supported by the hardware. */}
+      {!capturedImage && flashAvailable && (
         <button
           onClick={toggleFlash}
           aria-label={flashOn ? 'Apagar flash' : 'Encender flash'}
