@@ -225,16 +225,11 @@ export function GalleryHub({
           setSelectedGuestId(null);
           setActive(null);
         }}
-        onBack={() => {
-          // router.back() does nothing when the user landed here directly
-          // (no history entry to pop). Fall back to the app home so the
-          // arrow always feels live.
-          if (typeof window !== 'undefined' && window.history.length > 1) {
-            router.back();
-          } else {
-            router.push('/');
-          }
-        }}
+        // Per UX decision: the gallery's back arrow always lands you in the
+        // camera so you can keep shooting. router.back() was unreliable
+        // (no history on direct loads) and the alternative — going home —
+        // forced the user to re-find the rollo.
+        onBack={() => router.push(`/rollo/${code}/camara`)}
         onTakePhoto={() => router.push(`/rollo/${code}/camara`)}
         onShowInvite={() => setInviteOpen(true)}
         onShowMoments={() => setMomentsOpen(true)}
