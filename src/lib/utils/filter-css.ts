@@ -24,13 +24,13 @@ interface FilterDef {
 // added cool hue baseline since canvas filter doesn't resolve url() refs.
 // Sepia is gone — the cool color shift comes from the SVG colorMatrix.
 const VINTAGE_BASE = {
-  saturate: 1.18,
-  contrast: 1.10,
-  brightness: 1.01,
+  saturate: 1.28,
+  contrast: 1.18,
+  brightness: 1.02,
   hueRotateBase: 0,
-  blur: 0.3,
+  blur: 0.4,
 };
-const VINTAGE_CANVAS_BASE_HUE = 3;
+const VINTAGE_CANVAS_BASE_HUE = 4;
 
 function vintageChainFromValues(
   contrast: number,
@@ -94,11 +94,11 @@ function seededRand(seed: number, salt: number): number {
 function vintageVariationFor(photoId: string, mode: 'dom' | 'canvas'): string {
   const seed = hashString(photoId);
   const baseHue = mode === 'dom' ? VINTAGE_BASE.hueRotateBase : VINTAGE_CANVAS_BASE_HUE;
-  const hue = baseHue + seededRand(seed, 1) * 4;
-  const bright = VINTAGE_BASE.brightness + seededRand(seed, 2) * 0.035;
-  const contrast = VINTAGE_BASE.contrast + seededRand(seed, 3) * 0.045;
-  const blur = VINTAGE_BASE.blur + Math.max(0, seededRand(seed, 4)) * 0.3;
-  const saturate = VINTAGE_BASE.saturate + seededRand(seed, 5) * 0.05;
+  const hue = baseHue + seededRand(seed, 1) * 5;
+  const bright = VINTAGE_BASE.brightness + seededRand(seed, 2) * 0.05;
+  const contrast = VINTAGE_BASE.contrast + seededRand(seed, 3) * 0.06;
+  const blur = VINTAGE_BASE.blur + Math.max(0, seededRand(seed, 4)) * 0.4;
+  const saturate = VINTAGE_BASE.saturate + seededRand(seed, 5) * 0.07;
   return vintageChainFromValues(contrast, bright, hue, blur, saturate, mode);
 }
 
