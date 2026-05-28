@@ -251,14 +251,14 @@ export function GalleryHub({
               onPick={(id) => setSelectedGuestId(id)}
             />
           ) : locked ? (
-            <LockedPlaceholders />
+            <LockedPlaceholders coverImageUrl={coverImageUrl} />
           ) : (
             <p className="py-12 text-center text-rollo-muted">{es.gallery.empty}</p>
           )
         ) : photos.length === 0 ? (
           // Flat view, no photos. Locked → placeholders, unlocked → empty.
           locked ? (
-            <LockedPlaceholders />
+            <LockedPlaceholders coverImageUrl={coverImageUrl} />
           ) : (
             <p className="py-12 text-center text-rollo-muted">{es.gallery.empty}</p>
           )
@@ -540,29 +540,42 @@ function GuestSummaryCards({
 }
 
 /**
- * Decorative blurred cards for the locked-empty state. Renders 6 gradient
- * placeholders with a centered lock so the gallery still looks alive while
- * the rollo is waiting to reveal.
+ * Blurred placeholder cards for the locked-empty state. Uses the rollo's
+ * own cover image (heavily blurred) as the backdrop of every card, so the
+ * gallery looks like "the photos exist, you just can't see them yet"
+ * instead of a generic grid of color swatches. Each card slightly shifts
+ * the cover's position to break the visual repetition.
  */
-function LockedPlaceholders() {
-  const gradients = [
-    'from-rollo-accent/40 to-rollo-gold/30',
-    'from-purple-500/40 to-pink-500/30',
-    'from-blue-500/40 to-cyan-400/30',
-    'from-orange-500/40 to-yellow-400/30',
-    'from-rose-500/40 to-fuchsia-400/30',
-    'from-emerald-500/40 to-teal-400/30',
+function LockedPlaceholders({ coverImageUrl }: { coverImageUrl: string | null }) {
+  // 6 different background-position offsets so each card frames the same
+  // cover image differently — looks less like a wallpaper, more like a
+  // grid of distinct (blurred) shots.
+  const positions = [
+    '20% 30%', '70% 20%', '50% 60%',
+    '30% 80%', '80% 70%', '10% 50%',
   ];
   return (
     <div className="mt-6 grid grid-cols-2 gap-3">
-      {gradients.map((g, i) => (
+      {positions.map((pos, i) => (
         <div
           key={i}
-          className={`relative aspect-[3/4] overflow-hidden rounded-2xl bg-gradient-to-br ${g}`}
+          className="relative aspect-[3/4] overflow-hidden rounded-2xl bg-rollo-surface"
         >
-          <div className="absolute inset-0 backdrop-blur-2xl" />
+          {coverImageUrl ? (
+            <div
+              className="absolute inset-0 scale-110 opacity-60 blur-2xl"
+              style={{
+                backgroundImage: `url(${coverImageUrl})`,
+                backgroundSize: 'cover',
+                backgroundPosition: pos,
+              }}
+            />
+          ) : (
+            <div className="absolute inset-0 bg-gradient-to-br from-rollo-accent/40 to-rollo-gold/30" />
+          )}
+          <div className="absolute inset-0 bg-black/35" />
           <div className="absolute inset-0 grid place-items-center">
-            <Lock size={28} className="text-white/60" />
+            <Lock size={28} className="text-white/70" />
           </div>
         </div>
       ))}
