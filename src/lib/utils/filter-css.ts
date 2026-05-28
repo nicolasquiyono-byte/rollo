@@ -13,7 +13,7 @@ import {
 // applies the exact same color science as on-screen. Format: 4×5 matrix
 // (R G B A 1, repeated for each output channel).
 const COOL_CCD_MATRIX = [
-  0.95, 0,    0,    0, 0,
+  0.97, 0,    0,    0, 0,
   0,    1.0,  0,    0, 0,
   0,    0,    1.05, 0, 0.04,
   0,    0,    0,    1, 0,
@@ -70,7 +70,7 @@ export function applyDownloadFilter(
 
   // Step 3: CCD bloom (vintage only) — soft halation on highlights.
   if (filter === 'vintage') {
-    applyBloom(ctx, canvas, 3, 0.35);
+    applyBloom(ctx, canvas, 3, 0.22);
   }
 
   // Step 4: film grit / texture — bakes the same look the Grain overlay
@@ -81,11 +81,11 @@ export function applyDownloadFilter(
     const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     // Luminance grain — heavier for retro (35mm-ish), subtle for vintage
     // and special so the digicam look stays clean.
-    const grain = filter === 'retro' ? 0.10 : filter === 'vintage' ? 0.06 : 0.04;
+    const grain = filter === 'retro' ? 0.10 : filter === 'vintage' ? 0.10 : 0.04;
     applyGrain(imgData.data, grain);
     // Coloured CCD chroma noise — only the noisier presets.
     if (filter === 'retro' || filter === 'vintage') {
-      applyChromaNoise(imgData.data, filter === 'retro' ? 0.05 : 0.035);
+      applyChromaNoise(imgData.data, filter === 'retro' ? 0.05 : 0.05);
     }
     ctx.putImageData(imgData, 0, 0);
   }
@@ -125,7 +125,7 @@ const VINTAGE_BASE = {
   hueRotateBase: 0,
   blur: 0.4,
 };
-const VINTAGE_CANVAS_BASE_HUE = 4;
+const VINTAGE_CANVAS_BASE_HUE = 2;
 
 function vintageChainFromValues(
   contrast: number,

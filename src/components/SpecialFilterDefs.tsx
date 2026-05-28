@@ -48,7 +48,7 @@ export function SpecialFilterDefs() {
           <feColorMatrix
             type="matrix"
             values="
-              0.95 0    0    0    0
+              0.97 0    0    0    0
               0    1.0  0    0    0
               0    0    1.05 0    0.04
               0    0    0    1    0
@@ -71,9 +71,9 @@ export function SpecialFilterDefs() {
           <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur" />
           <feColorMatrix
             in="blur"
-            values="0.35 0    0    0 0
-                    0    0.35 0    0 0
-                    0    0    0.35 0 0
+            values="0.22 0    0    0 0
+                    0    0.22 0    0 0
+                    0    0    0.22 0 0
                     0    0    0    1 0"
             result="weakBlur"
           />

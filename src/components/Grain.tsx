@@ -62,7 +62,7 @@ export function Grain({ filter, opacity = 0.55 }: Props) {
   //   special → as-passed (caller decides)
   const grainOpacity =
     filter === 'retro' ? Math.min(opacity * 1.55, 1)
-    : filter === 'vintage' ? Math.min(opacity * 1.1, 1)
+    : filter === 'vintage' ? Math.min(opacity * 1.4, 1)
     : opacity;
 
   return (
