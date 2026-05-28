@@ -377,17 +377,17 @@ function Hero({
         <ArrowLeft size={20} />
       </button>
 
-      {/* Title + stats + CTAs. Shorter top padding than before so the grid
-          peeks above the fold; the cover is still visible (~38% of screen). */}
-      <div className="relative z-10 px-5 pb-5 pt-[38vw] sm:pt-56">
-        <h1 className="font-display text-4xl leading-[1.05] tracking-tight text-white sm:text-5xl">
+      {/* Title + stats + CTAs. Bigger cover area now (~55% of screen) and
+          everything centred over the photo, matching the reference look. */}
+      <div className="relative z-10 px-5 pb-5 pt-[55vw] text-center sm:pt-72">
+        <h1 className="mx-auto font-display text-4xl leading-[1.05] tracking-tight text-white sm:text-5xl">
           {name}
         </h1>
 
-        <div className="mt-5 flex items-end gap-6 text-white/85">
+        <div className="mt-5 flex items-end justify-center gap-10 text-white/85">
           <Stat label="Momentos" value={String(photosCount)} />
           <Stat label="Restantes" value={countdown || '…'} mono />
-          <Stat label="Personas" value={String(peopleCount)} chevron />
+          <Stat label="Personas" value={String(peopleCount)} />
         </div>
 
         <div className="mt-5 flex items-center gap-3">
@@ -599,15 +599,13 @@ function Stat({
   label,
   value,
   mono,
-  chevron,
 }: {
   label: string;
   value: string;
   mono?: boolean;
-  chevron?: boolean;
 }) {
   return (
-    <div className="flex flex-col items-start">
+    <div className="flex flex-col items-center text-center">
       <span
         className={
           mono
@@ -617,9 +615,8 @@ function Stat({
       >
         {value}
       </span>
-      <span className="mt-1 flex items-center gap-1 text-[11px] uppercase tracking-wide text-white/70">
+      <span className="mt-1 text-[11px] uppercase tracking-wide text-white/70">
         {label}
-        {chevron && <span className="text-white/40">›</span>}
       </span>
     </div>
   );
