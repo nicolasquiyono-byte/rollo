@@ -357,8 +357,8 @@ function Hero({
           </button>
         </div>
 
-        {/* View toggle: Todas / Por invitado */}
-        <div className="mt-4 inline-flex rounded-full bg-white/10 p-1 text-sm backdrop-blur">
+        {/* View toggle: Todas / Por invitado — full width below the action row */}
+        <div className="mt-4 flex w-full rounded-full bg-white/10 p-1 text-sm backdrop-blur">
           <ViewTab active={view === 'all'} onClick={() => onSwitchView('all')}>
             {es.gallery.view_all}
           </ViewTab>
@@ -383,7 +383,7 @@ function ViewTab({
   return (
     <button
       onClick={onClick}
-      className={`rounded-full px-4 py-1.5 transition ${
+      className={`flex-1 rounded-full px-4 py-2 text-center transition ${
         active ? 'bg-white text-black' : 'text-white/80'
       }`}
     >
