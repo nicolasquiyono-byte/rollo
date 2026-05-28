@@ -8,6 +8,17 @@ interface Props {
   children: React.ReactNode;
 }
 
+// Animation timings & curves. Open is a touch longer and uses Apple's
+// UIView curve (the same easing iOS uses for sheets) for a soft glide-in.
+// Close is shorter — modals dismiss snappier than they appear. Snap-back
+// after a partial drag uses a gentle overshoot for a natural settle.
+const OPEN_MS = 460;
+const CLOSE_MS = 320;
+const SNAP_MS = 280;
+const OPEN_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
+const CLOSE_EASE = 'cubic-bezier(0.4, 0, 0.6, 1)';
+const SNAP_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
+
 /**
  * Bottom-sheet modal. Closes when the user:
  *   • taps the backdrop outside the sheet
@@ -20,20 +31,20 @@ interface Props {
 export function BottomSheet({ open, onClose, children }: Props) {
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [justReleased, setJustReleased] = useState(false);
   const dragStart = useRef<number | null>(null);
   const [dragOffset, setDragOffset] = useState(0);
 
-  // Mount/unmount with a short delay so the slide-out transition can play
-  // before the sheet is removed from the DOM.
+  // Mount/unmount with a delay so the slide-out transition can play before
+  // the sheet is removed from the DOM.
   useEffect(() => {
     if (open) {
       setMounted(true);
       requestAnimationFrame(() => setVisible(true));
     } else {
       setVisible(false);
-      // Match the 380ms slide-out so the sheet stays mounted through the
-      // full transition before being removed from the DOM.
-      const t = setTimeout(() => setMounted(false), 380);
+      const t = setTimeout(() => setMounted(false), CLOSE_MS);
       return () => clearTimeout(t);
     }
   }, [open]);
@@ -58,28 +69,58 @@ export function BottomSheet({ open, onClose, children }: Props) {
     };
   }, [open]);
 
+  // Brief flag right after release so we can use the gentler snap-back
+  // curve instead of the open-curve when settling.
+  useEffect(() => {
+    if (!justReleased) return;
+    const t = setTimeout(() => setJustReleased(false), SNAP_MS + 20);
+    return () => clearTimeout(t);
+  }, [justReleased]);
+
   if (!mounted) return null;
 
   function handleTouchStart(e: React.TouchEvent) {
     dragStart.current = e.touches[0].clientY;
+    setDragging(true);
   }
   function handleTouchMove(e: React.TouchEvent) {
     if (dragStart.current === null) return;
     const dy = e.touches[0].clientY - dragStart.current;
-    // Only let the user drag downward.
     if (dy > 0) setDragOffset(dy);
   }
   function handleTouchEnd() {
-    if (dragOffset > 120) onClose();
-    setDragOffset(0);
+    const closed = dragOffset > 120;
     dragStart.current = null;
+    setDragging(false);
+    setDragOffset(0);
+    if (closed) {
+      onClose();
+    } else {
+      setJustReleased(true);
+    }
   }
+
+  // Compute current transition based on what's happening right now:
+  //  - dragging: no transition, sheet follows finger 1:1
+  //  - just released without dismiss: gentle snap-back ease
+  //  - opening: long Apple-style ease
+  //  - closing (open=false): shorter, sharper ease
+  const transition = dragging
+    ? 'none'
+    : justReleased
+      ? `transform ${SNAP_MS}ms ${SNAP_EASE}`
+      : `transform ${open ? OPEN_MS : CLOSE_MS}ms ${open ? OPEN_EASE : CLOSE_EASE}`;
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex flex-col justify-end transition-colors duration-300 ${
+      className={`fixed inset-0 z-50 flex flex-col justify-end ${
         visible ? 'bg-black/60' : 'bg-black/0'
       }`}
+      style={{
+        transition: `background-color ${open ? OPEN_MS : CLOSE_MS}ms ${
+          open ? OPEN_EASE : CLOSE_EASE
+        }`,
+      }}
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -91,11 +132,9 @@ export function BottomSheet({ open, onClose, children }: Props) {
           transform: visible
             ? `translateY(${dragOffset}px)`
             : 'translateY(100%)',
-          // Slower, smoother slide-in than the previous 250ms snap. The cubic
-          // bezier mimics the iOS sheet curve — quick to start, eased finish.
-          transition: dragStart.current === null
-            ? 'transform 380ms cubic-bezier(0.16, 1, 0.3, 1)'
-            : 'none',
+          transition,
+          // Hint the compositor so the slide stays on its own GPU layer.
+          willChange: 'transform',
           paddingBottom: 'max(env(safe-area-inset-bottom), 16px)',
         }}
       >
