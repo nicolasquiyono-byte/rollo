@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Copy, Eye, Lock, Sparkles } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -177,6 +177,20 @@ export function AdminDashboard({ rollo: initialRollo, token, initial }: Props) {
   const revealNow = () =>
     callAction('reveal_rollo_now', 'reveal', '¿Revelar las fotos ahora? Esta acción no se puede deshacer.');
 
+  async function saveRevealTime(newIso: string) {
+    setError(null);
+    const { data, error: rpcErr } = await supabase
+      .rpc('update_reveal_time', { p_token: token, p_reveals_at: newIso })
+      .single();
+    if (rpcErr) {
+      console.error('[Admin] update_reveal_time failed', rpcErr);
+      setError(rpcErr.message);
+      return false;
+    }
+    if (data) setRollo(data as Rollo);
+    return true;
+  }
+
   function copyJoinLink() {
     const url = `${window.location.origin}/unirse?code=${rollo.code}`;
     navigator.clipboard?.writeText(url).then(() => {
@@ -228,6 +242,17 @@ export function AdminDashboard({ rollo: initialRollo, token, initial }: Props) {
           )}
         </StatCard>
       </section>
+
+      {/* Reveal-time editor — only for delayed-reveal rollos that haven't
+          revealed yet. Lets the host push the reveal earlier or later
+          without re-creating the rollo. */}
+      {rollo.reveal_type === 'delayed' && !isRevealed && (
+        <RevealTimeEditor
+          revealsAt={rollo.reveals_at}
+          minDate={rollo.closes_at}
+          onSave={saveRevealTime}
+        />
+      )}
 
       <section className="mt-10">
         <h2 className="font-display text-xl">Invitados ({guests.length})</h2>
@@ -359,6 +384,116 @@ export function AdminDashboard({ rollo: initialRollo, token, initial }: Props) {
       })()}
     </main>
   );
+}
+
+/**
+ * Inline editor for the reveal time of a delayed-reveal rollo.
+ * Shows the current date in a readable form; "Editar" toggles a
+ * datetime-local input. Save calls the parent's async saveRevealTime
+ * which talks to the update_reveal_time RPC.
+ */
+function RevealTimeEditor({
+  revealsAt,
+  minDate,
+  onSave,
+}: {
+  revealsAt: string | null;
+  minDate: string;
+  onSave: (iso: string) => Promise<boolean>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(() => toLocalInput(revealsAt));
+  const [saving, setSaving] = useState(false);
+
+  // Keep the input in sync when the parent state refreshes (e.g. after save).
+  useEffect(() => {
+    setValue(toLocalInput(revealsAt));
+  }, [revealsAt]);
+
+  // datetime-local min: now OR the rollo's closes_at, whichever is later.
+  // Reveal can't make sense in the past, and usually shouldn't be before
+  // shooting closes (though the RPC will accept anything).
+  const min = useMemo(() => {
+    const now = new Date();
+    const closes = new Date(minDate);
+    return toLocalInput((closes > now ? closes : now).toISOString());
+  }, [minDate]);
+
+  const readable = revealsAt
+    ? new Date(revealsAt).toLocaleString('es-MX', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'long',
+        hour: 'numeric',
+        minute: '2-digit',
+      })
+    : 'sin fecha';
+
+  async function handleSave() {
+    if (!value) return;
+    setSaving(true);
+    const iso = new Date(value).toISOString();
+    const ok = await onSave(iso);
+    setSaving(false);
+    if (ok) setEditing(false);
+  }
+
+  return (
+    <section className="mt-6 rounded-2xl border border-white/10 bg-rollo-surface p-4">
+      <p className="text-xs uppercase tracking-wide text-rollo-muted">
+        Las fotos se revelan
+      </p>
+      {!editing ? (
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <p className="font-display text-lg leading-tight">{readable}</p>
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="rounded-full border border-white/15 px-4 py-1.5 text-xs uppercase tracking-wide text-white/85 transition active:scale-95 hover:border-white/30 hover:bg-white/5"
+          >
+            Editar
+          </button>
+        </div>
+      ) : (
+        <div className="mt-3 flex flex-col gap-3">
+          <input
+            type="datetime-local"
+            value={value}
+            min={min}
+            onChange={(e) => setValue(e.target.value)}
+            className="w-full rounded-xl border border-white/10 bg-rollo-bg px-3 py-2 text-base outline-none transition focus:border-white/40 [color-scheme:dark]"
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setEditing(false);
+                setValue(toLocalInput(revealsAt));
+              }}
+              className="flex-1 rounded-full border border-white/10 py-2 text-sm"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving || !value}
+              className="flex-1 rounded-full bg-rollo-accent py-2 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              {saving ? 'Guardando…' : 'Guardar'}
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function toLocalInput(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function StatCard({

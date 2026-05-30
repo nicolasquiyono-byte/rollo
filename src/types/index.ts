@@ -139,6 +139,10 @@ export type Database = {
         Args: { p_token: string };
         Returns: Rollo;
       };
+      update_reveal_time: {
+        Args: { p_token: string; p_reveals_at: string };
+        Returns: Rollo;
+      };
     };
   };
 }
