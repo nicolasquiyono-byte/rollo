@@ -30,13 +30,20 @@ export function MomentsSheet({ open, onClose, photos }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [openGuestId, setOpenGuestId] = useState<string | null>(null);
+  // Cache of baked blobs keyed by photo id. We start the bake the moment
+  // the user selects a photo so that by the time they tap Save/Share, the
+  // share API can be called synchronously inside the user gesture — iOS
+  // Safari requires that to route the files to Photos via the share sheet
+  // (otherwise the gesture is lost and the share silently fails).
+  const [bakedCache, setBakedCache] = useState<Map<string, Blob>>(new Map());
 
-  // Clear selection whenever the sheet opens or closes.
+  // Clear selection + cache whenever the sheet opens or closes.
   useEffect(() => {
     if (!open) {
       setSelected(new Set());
       setTab('all');
       setOpenGuestId(null);
+      setBakedCache(new Map());
     }
   }, [open]);
 
@@ -67,6 +74,25 @@ export function MomentsSheet({ open, onClose, photos }: Props) {
   const allSelected =
     visiblePhotos.length > 0 && visiblePhotos.every((p) => selected.has(p.id));
 
+  // Kick off a background bake for a photo if we don't already have it
+  // cached. The Save/Share path will pick up the cached blob and call
+  // navigator.share inside the user's gesture (no awaits in between).
+  function ensureBaked(photoId: string) {
+    if (bakedCache.has(photoId)) return;
+    const p = photos.find((x) => x.id === photoId);
+    if (!p) return;
+    bakeFilterToBlob(p.url, p.filter, p.id, p.takenAt)
+      .then((blob) => {
+        setBakedCache((prev) => {
+          if (prev.has(photoId)) return prev;
+          const next = new Map(prev);
+          next.set(photoId, blob);
+          return next;
+        });
+      })
+      .catch((e) => console.warn('[MomentsSheet] bake failed', photoId, e));
+  }
+
   function toggle(photoId: string) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -74,6 +100,7 @@ export function MomentsSheet({ open, onClose, photos }: Props) {
         next.delete(photoId);
       } else if (next.size < MAX_SELECT) {
         next.add(photoId);
+        ensureBaked(photoId);
       }
       return next;
     });
@@ -88,75 +115,98 @@ export function MomentsSheet({ open, onClose, photos }: Props) {
       for (const p of visiblePhotos) {
         if (next.size >= MAX_SELECT) break;
         next.add(p.id);
+        ensureBaked(p.id);
       }
       setSelected(next);
     }
   }
 
-  async function bakeSelected(): Promise<{ blob: Blob; name: string }[]> {
-    const items = photos.filter((p) => selected.has(p.id));
-    const out: { blob: Blob; name: string }[] = [];
-    for (const p of items) {
-      try {
-        const blob = await bakeFilterToBlob(p.url, p.filter, p.id, p.takenAt);
-        out.push({ blob, name: `rollo-${p.id}.jpg` });
-      } catch (e) {
-        console.warn('[MomentsSheet] bake failed for', p.id, e);
-      }
-    }
-    return out;
+  const selectedPhotos = useMemo(
+    () => photos.filter((p) => selected.has(p.id)),
+    [photos, selected],
+  );
+  const readyCount = selectedPhotos.filter((p) => bakedCache.has(p.id)).length;
+  const allReady = selectedPhotos.length > 0 && readyCount === selectedPhotos.length;
+
+  // Build File[] from the cache. Synchronous — no awaits — so calling it
+  // from a click handler preserves the iOS user gesture for navigator.share.
+  function filesFromCache(): File[] {
+    return selectedPhotos
+      .map((p) => {
+        const blob = bakedCache.get(p.id);
+        return blob ? new File([blob], `rollo-${p.id}.jpg`, { type: 'image/jpeg' }) : null;
+      })
+      .filter((f): f is File => f !== null);
   }
 
-  async function handleSave() {
-    if (selected.size === 0 || busy) return;
-    setBusy(true);
-    try {
-      const baked = await bakeSelected();
-      for (const { blob, name } of baked) {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = name;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-        // Small delay between downloads so the browser groups them properly.
-        await new Promise((r) => setTimeout(r, 200));
-      }
-      onClose();
-    } finally {
-      setBusy(false);
+  function downloadAnchors(files: File[]) {
+    for (const file of files) {
+      const url = URL.createObjectURL(file);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
   }
 
-  async function handleShare() {
-    if (selected.size === 0 || busy) return;
-    setBusy(true);
-    try {
-      const baked = await bakeSelected();
-      const files = baked.map(
-        ({ blob, name }) => new File([blob], name, { type: 'image/jpeg' }),
-      );
-      const nav = navigator as Navigator & {
-        canShare?: (data: ShareData) => boolean;
-        share?: (data: ShareData) => Promise<void>;
-      };
-      if (nav.share && nav.canShare && nav.canShare({ files })) {
-        try {
-          await nav.share({ files });
-          onClose();
-          return;
-        } catch (e) {
-          if ((e as Error).name === 'AbortError') return;
+  function tryShareSync(files: File[]): boolean {
+    const nav = navigator as Navigator & {
+      canShare?: (data: ShareData) => boolean;
+      share?: (data: ShareData) => Promise<void>;
+    };
+    if (!nav.share || !nav.canShare || !nav.canShare({ files })) return false;
+    nav.share({ files })
+      .then(() => onClose())
+      .catch((e: Error) => {
+        if (e.name !== 'AbortError') {
+          // Share rejected for non-cancel reasons — fall back to download.
+          downloadAnchors(files);
         }
-      }
-      // Fallback to sequential download if Web Share unavailable.
-      await handleSave();
-    } finally {
-      setBusy(false);
-    }
+      });
+    return true;
   }
+
+  // Save/Share both use the same path: when the user's selected photos
+  // are all baked, fire navigator.share({files}) synchronously so iOS
+  // opens the share sheet with "Save Images" → Photos. Falls back to
+  // a multi-anchor download if Web Share isn't available.
+  function handleSave() {
+    if (selected.size === 0 || busy) return;
+    if (allReady) {
+      const files = filesFromCache();
+      if (tryShareSync(files)) return;
+      downloadAnchors(files);
+      return;
+    }
+    // Some photos still baking — wait, then try share (gesture is lost
+    // by the time the promise resolves so iOS falls back to anchor).
+    setBusy(true);
+    void (async () => {
+      try {
+        const items = selectedPhotos;
+        const files: File[] = [];
+        for (const p of items) {
+          const cached = bakedCache.get(p.id);
+          const blob = cached ?? (await bakeFilterToBlob(p.url, p.filter, p.id, p.takenAt));
+          if (!cached) {
+            setBakedCache((prev) => new Map(prev).set(p.id, blob));
+          }
+          files.push(new File([blob], `rollo-${p.id}.jpg`, { type: 'image/jpeg' }));
+        }
+        if (!tryShareSync(files)) downloadAnchors(files);
+      } finally {
+        setBusy(false);
+      }
+    })();
+  }
+
+  // "Compartir" intentionally goes through the same flow as Save; the
+  // distinction is just visual / intent — on iOS both end up in the
+  // share sheet so the user picks Save Images, Messages, etc.
+  const handleShare = handleSave;
 
   return (
     <BottomSheet open={open} onClose={onClose}>
@@ -248,7 +298,9 @@ export function MomentsSheet({ open, onClose, photos }: Props) {
         >
           {busy
             ? 'Procesando…'
-            : `Guardar ${selected.size || 0} momento${selected.size === 1 ? '' : 's'}`}
+            : selected.size > 0 && !allReady
+              ? `Preparando ${readyCount}/${selected.size}…`
+              : `Guardar ${selected.size || 0} momento${selected.size === 1 ? '' : 's'}`}
           <Download size={16} />
         </button>
       </div>
