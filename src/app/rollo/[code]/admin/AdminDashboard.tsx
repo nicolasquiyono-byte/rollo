@@ -177,13 +177,20 @@ export function AdminDashboard({ rollo: initialRollo, token, initial }: Props) {
   const revealNow = () =>
     callAction('reveal_rollo_now', 'reveal', '¿Revelar las fotos ahora? Esta acción no se puede deshacer.');
 
-  async function saveRevealTime(newIso: string) {
+  async function saveRevealSettings(
+    revealType: 'instant' | 'delayed',
+    revealsAtIso: string | null,
+  ) {
     setError(null);
     const { data, error: rpcErr } = await supabase
-      .rpc('update_reveal_time', { p_token: token, p_reveals_at: newIso })
+      .rpc('update_reveal_settings', {
+        p_token: token,
+        p_reveal_type: revealType,
+        p_reveals_at: revealsAtIso,
+      })
       .single();
     if (rpcErr) {
-      console.error('[Admin] update_reveal_time failed', rpcErr);
+      console.error('[Admin] update_reveal_settings failed', rpcErr);
       setError(rpcErr.message);
       return false;
     }
@@ -243,14 +250,15 @@ export function AdminDashboard({ rollo: initialRollo, token, initial }: Props) {
         </StatCard>
       </section>
 
-      {/* Reveal-time editor — only for delayed-reveal rollos that haven't
-          revealed yet. Lets the host push the reveal earlier or later
-          without re-creating the rollo. */}
-      {rollo.reveal_type === 'delayed' && !isRevealed && (
-        <RevealTimeEditor
+      {/* Reveal settings — always visible while the rollo isn't already
+          revealed. Admin can pick between "Al instante" and "Programado",
+          and pick the moment for the latter. */}
+      {!isRevealed && (
+        <RevealSettingsEditor
+          revealType={rollo.reveal_type}
           revealsAt={rollo.reveals_at}
           minDate={rollo.closes_at}
-          onSave={saveRevealTime}
+          onSave={saveRevealSettings}
         />
       )}
 
@@ -387,68 +395,89 @@ export function AdminDashboard({ rollo: initialRollo, token, initial }: Props) {
 }
 
 /**
- * Inline editor for the reveal time of a delayed-reveal rollo.
- * Shows the current date in a readable form; "Editar" toggles a
- * datetime-local input. Save calls the parent's async saveRevealTime
- * which talks to the update_reveal_time RPC.
+ * Inline reveal-settings editor. Always visible for non-revealed rollos;
+ * lets the admin pick between "Al instante" (photos visible as soon as
+ * they're shot) and "Programado" (hidden until a chosen datetime). Saves
+ * via update_reveal_settings RPC.
  */
-function RevealTimeEditor({
+function RevealSettingsEditor({
+  revealType,
   revealsAt,
   minDate,
   onSave,
 }: {
+  revealType: 'instant' | 'delayed';
   revealsAt: string | null;
   minDate: string;
-  onSave: (iso: string) => Promise<boolean>;
+  onSave: (type: 'instant' | 'delayed', iso: string | null) => Promise<boolean>;
 }) {
   const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(() => toLocalInput(revealsAt));
+  // Local draft state while editing — only commits on Save.
+  const [draftType, setDraftType] = useState<'instant' | 'delayed'>(revealType);
+  const [draftValue, setDraftValue] = useState(() => toLocalInput(revealsAt));
   const [saving, setSaving] = useState(false);
 
-  // Keep the input in sync when the parent state refreshes (e.g. after save).
+  // Reset draft when the parent state changes (e.g. after a save).
   useEffect(() => {
-    setValue(toLocalInput(revealsAt));
-  }, [revealsAt]);
+    setDraftType(revealType);
+    setDraftValue(toLocalInput(revealsAt));
+  }, [revealType, revealsAt]);
 
-  // datetime-local min: now OR the rollo's closes_at, whichever is later.
-  // Reveal can't make sense in the past, and usually shouldn't be before
-  // shooting closes (though the RPC will accept anything).
+  // Min for the datetime picker: now OR rollo close, whichever is later.
   const min = useMemo(() => {
     const now = new Date();
     const closes = new Date(minDate);
     return toLocalInput((closes > now ? closes : now).toISOString());
   }, [minDate]);
 
-  const readable = revealsAt
-    ? new Date(revealsAt).toLocaleString('es-MX', {
-        weekday: 'short',
-        day: 'numeric',
-        month: 'long',
-        hour: 'numeric',
-        minute: '2-digit',
-      })
-    : 'sin fecha';
+  const summary =
+    revealType === 'instant'
+      ? 'Al instante'
+      : revealsAt
+        ? new Date(revealsAt).toLocaleString('es-MX', {
+            weekday: 'short',
+            day: 'numeric',
+            month: 'long',
+            hour: 'numeric',
+            minute: '2-digit',
+          })
+        : 'Sin fecha';
 
-  async function handleSave() {
-    if (!value) return;
+  function startEditing() {
+    setDraftType(revealType);
+    setDraftValue(toLocalInput(revealsAt) || min);
+    setEditing(true);
+  }
+
+  function cancel() {
+    setEditing(false);
+    setDraftType(revealType);
+    setDraftValue(toLocalInput(revealsAt));
+  }
+
+  async function save() {
     setSaving(true);
-    const iso = new Date(value).toISOString();
-    const ok = await onSave(iso);
+    const iso = draftType === 'delayed' && draftValue ? new Date(draftValue).toISOString() : null;
+    const ok = await onSave(draftType, iso);
     setSaving(false);
     if (ok) setEditing(false);
   }
 
+  const canSave =
+    !saving && (draftType === 'instant' || (draftType === 'delayed' && !!draftValue));
+
   return (
     <section className="mt-6 rounded-2xl border border-white/10 bg-rollo-surface p-4">
       <p className="text-xs uppercase tracking-wide text-rollo-muted">
-        Las fotos se revelan
+        Tipo de revelado
       </p>
+
       {!editing ? (
         <div className="mt-2 flex items-center justify-between gap-3">
-          <p className="font-display text-lg leading-tight">{readable}</p>
+          <p className="font-display text-lg leading-tight">{summary}</p>
           <button
             type="button"
-            onClick={() => setEditing(true)}
+            onClick={startEditing}
             className="rounded-full border border-white/15 px-4 py-1.5 text-xs uppercase tracking-wide text-white/85 transition active:scale-95 hover:border-white/30 hover:bg-white/5"
           >
             Editar
@@ -456,28 +485,44 @@ function RevealTimeEditor({
         </div>
       ) : (
         <div className="mt-3 flex flex-col gap-3">
-          <input
-            type="datetime-local"
-            value={value}
-            min={min}
-            onChange={(e) => setValue(e.target.value)}
-            className="w-full rounded-xl border border-white/10 bg-rollo-bg px-3 py-2 text-base outline-none transition focus:border-white/40 [color-scheme:dark]"
-          />
+          {/* Mode segmented control */}
+          <div className="flex rounded-full bg-rollo-bg/80 p-1 text-sm">
+            <SegBtn active={draftType === 'instant'} onClick={() => setDraftType('instant')}>
+              Al instante
+            </SegBtn>
+            <SegBtn active={draftType === 'delayed'} onClick={() => setDraftType('delayed')}>
+              Programado
+            </SegBtn>
+          </div>
+
+          {/* Datetime picker only relevant for "delayed" */}
+          {draftType === 'delayed' && (
+            <input
+              type="datetime-local"
+              value={draftValue}
+              min={min}
+              onChange={(e) => setDraftValue(e.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-rollo-bg px-3 py-2 text-base outline-none transition focus:border-white/40 [color-scheme:dark]"
+            />
+          )}
+          {draftType === 'instant' && (
+            <p className="text-xs text-rollo-muted">
+              Las fotos se verán inmediatamente cuando se tomen.
+            </p>
+          )}
+
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => {
-                setEditing(false);
-                setValue(toLocalInput(revealsAt));
-              }}
+              onClick={cancel}
               className="flex-1 rounded-full border border-white/10 py-2 text-sm"
             >
               Cancelar
             </button>
             <button
               type="button"
-              onClick={handleSave}
-              disabled={saving || !value}
+              onClick={save}
+              disabled={!canSave}
               className="flex-1 rounded-full bg-rollo-accent py-2 text-sm font-semibold text-white disabled:opacity-60"
             >
               {saving ? 'Guardando…' : 'Guardar'}
@@ -486,6 +531,28 @@ function RevealTimeEditor({
         </div>
       )}
     </section>
+  );
+}
+
+function SegBtn({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex-1 rounded-full px-3 py-1.5 text-center text-sm transition ${
+        active ? 'bg-white text-black' : 'text-white/75'
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 

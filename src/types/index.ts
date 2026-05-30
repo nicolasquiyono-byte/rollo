@@ -139,8 +139,12 @@ export type Database = {
         Args: { p_token: string };
         Returns: Rollo;
       };
-      update_reveal_time: {
-        Args: { p_token: string; p_reveals_at: string };
+      update_reveal_settings: {
+        Args: {
+          p_token: string;
+          p_reveal_type: 'instant' | 'delayed';
+          p_reveals_at: string | null;
+        };
         Returns: Rollo;
       };
     };
