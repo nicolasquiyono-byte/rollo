@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import JSZip from 'jszip';
 import { Check, Download, Share2 } from 'lucide-react';
 import { BottomSheet } from '@/components/BottomSheet';
 import { bakeFilterToBlob, filterCss } from '@/lib/utils/filter-css';
@@ -22,7 +23,11 @@ interface Props {
   photos: SheetPhoto[];
 }
 
-const MAX_SELECT = 5;
+// Hard safety cap to avoid OOM on huge rollos. The "soft" UX cap is 10
+// (below SHARE_THRESHOLD the user gets Photos via the share sheet;
+// above it the bundle is delivered as a ZIP to Files).
+const MAX_SELECT = 50;
+const SHARE_THRESHOLD = 10;
 type Tab = 'all' | 'by-guest';
 
 export function MomentsSheet({ open, onClose, photos }: Props) {
@@ -169,33 +174,60 @@ export function MomentsSheet({ open, onClose, photos }: Props) {
     return true;
   }
 
-  // Save/Share both use the same path: when the user's selected photos
-  // are all baked, fire navigator.share({files}) synchronously so iOS
-  // opens the share sheet with "Save Images" → Photos. Falls back to
-  // a multi-anchor download if Web Share isn't available.
+  const useZip = selectedPhotos.length > SHARE_THRESHOLD;
+
+  async function downloadAsZip(files: File[]) {
+    const zip = new JSZip();
+    for (const f of files) zip.file(f.name, f);
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `rollo-${files.length}-momentos.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  // Save flow: ≤10 photos → share sheet (Save Images → Photos).
+  // >10 photos → ZIP bundle to Files. Both rely on the pre-baked cache
+  // so the click handler stays synchronous when everything is ready.
   function handleSave() {
     if (selected.size === 0 || busy) return;
+
     if (allReady) {
       const files = filesFromCache();
+      if (useZip) {
+        setBusy(true);
+        downloadAsZip(files)
+          .then(() => onClose())
+          .finally(() => setBusy(false));
+        return;
+      }
       if (tryShareSync(files)) return;
       downloadAnchors(files);
       return;
     }
-    // Some photos still baking — wait, then try share (gesture is lost
-    // by the time the promise resolves so iOS falls back to anchor).
+
+    // Not all photos are baked yet — wait for the rest, then dispatch.
     setBusy(true);
     void (async () => {
       try {
-        const items = selectedPhotos;
         const files: File[] = [];
-        for (const p of items) {
+        for (const p of selectedPhotos) {
           const cached = bakedCache.get(p.id);
           const blob = cached ?? (await bakeFilterToBlob(p.url, p.filter, p.id, p.takenAt));
-          if (!cached) {
-            setBakedCache((prev) => new Map(prev).set(p.id, blob));
-          }
+          if (!cached) setBakedCache((prev) => new Map(prev).set(p.id, blob));
           files.push(new File([blob], `rollo-${p.id}.jpg`, { type: 'image/jpeg' }));
         }
+        if (useZip) {
+          await downloadAsZip(files);
+          onClose();
+          return;
+        }
+        // Gesture is already lost by now on iOS; share() likely no-ops, so
+        // the fallback to multi-anchor download will kick in.
         if (!tryShareSync(files)) downloadAnchors(files);
       } finally {
         setBusy(false);
@@ -203,9 +235,7 @@ export function MomentsSheet({ open, onClose, photos }: Props) {
     })();
   }
 
-  // "Compartir" intentionally goes through the same flow as Save; the
-  // distinction is just visual / intent — on iOS both end up in the
-  // share sheet so the user picks Save Images, Messages, etc.
+  // Compartir uses the same flow — distinction is visual on the button row.
   const handleShare = handleSave;
 
   return (
@@ -278,6 +308,18 @@ export function MomentsSheet({ open, onClose, photos }: Props) {
         )}
       </div>
 
+      {/* Notice when the selection has crossed into ZIP territory — share
+          sheets choke past ~10 files, so we package them as a ZIP into
+          Files instead of trying to save directly to Photos. */}
+      {useZip && (
+        <div
+          className="absolute inset-x-0 bottom-[80px] mx-4 mb-2 rounded-xl bg-white/5 px-3 py-2 text-center text-[11px] text-white/70"
+          style={{ marginBottom: 'calc(env(safe-area-inset-bottom, 0px) + 76px)' }}
+        >
+          Con más de {SHARE_THRESHOLD} fotos se descargan como un ZIP en Archivos.
+        </div>
+      )}
+
       {/* Sticky footer with share + save actions */}
       <div
         className="absolute inset-x-0 bottom-0 flex gap-3 border-t border-white/10 bg-rollo-bg/95 p-4 backdrop-blur"
@@ -297,10 +339,14 @@ export function MomentsSheet({ open, onClose, photos }: Props) {
           className="flex flex-[1.5] items-center justify-center gap-2 rounded-2xl bg-[#9ECBFF] py-3 text-sm font-semibold text-black transition active:scale-95 disabled:opacity-40"
         >
           {busy
-            ? 'Procesando…'
+            ? useZip
+              ? 'Empaquetando…'
+              : 'Procesando…'
             : selected.size > 0 && !allReady
               ? `Preparando ${readyCount}/${selected.size}…`
-              : `Guardar ${selected.size || 0} momento${selected.size === 1 ? '' : 's'}`}
+              : useZip
+                ? `Descargar ZIP (${selected.size})`
+                : `Guardar ${selected.size || 0} momento${selected.size === 1 ? '' : 's'}`}
           <Download size={16} />
         </button>
       </div>
