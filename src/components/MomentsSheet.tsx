@@ -41,6 +41,11 @@ export function MomentsSheet({ open, onClose, photos }: Props) {
   // Safari requires that to route the files to Photos via the share sheet
   // (otherwise the gesture is lost and the share silently fails).
   const [bakedCache, setBakedCache] = useState<Map<string, Blob>>(new Map());
+  // Toggled on the moment the user crosses SHARE_THRESHOLD so we can show
+  // a one-shot popup explaining the ZIP fallback. Resets when the sheet
+  // is closed so it can appear again on the next visit.
+  const [zipNoticeOpen, setZipNoticeOpen] = useState(false);
+  const [zipNoticeShown, setZipNoticeShown] = useState(false);
 
   // Clear selection + cache whenever the sheet opens or closes.
   useEffect(() => {
@@ -49,6 +54,8 @@ export function MomentsSheet({ open, onClose, photos }: Props) {
       setTab('all');
       setOpenGuestId(null);
       setBakedCache(new Map());
+      setZipNoticeOpen(false);
+      setZipNoticeShown(false);
     }
   }, [open]);
 
@@ -106,6 +113,12 @@ export function MomentsSheet({ open, onClose, photos }: Props) {
       } else if (next.size < MAX_SELECT) {
         next.add(photoId);
         ensureBaked(photoId);
+        // First time we cross into ZIP territory in this sheet session,
+        // pop up the one-shot notice.
+        if (next.size === SHARE_THRESHOLD + 1 && !zipNoticeShown) {
+          setZipNoticeOpen(true);
+          setZipNoticeShown(true);
+        }
       }
       return next;
     });
@@ -308,15 +321,34 @@ export function MomentsSheet({ open, onClose, photos }: Props) {
         )}
       </div>
 
-      {/* Notice when the selection has crossed into ZIP territory — share
-          sheets choke past ~10 files, so we package them as a ZIP into
-          Files instead of trying to save directly to Photos. */}
-      {useZip && (
+      {/* One-shot centred popup the first time the user crosses the ZIP
+          threshold. Share sheets choke past ~10 files on iOS, so beyond
+          that we bundle as a ZIP into Files. */}
+      {zipNoticeOpen && (
         <div
-          className="absolute inset-x-0 bottom-[80px] mx-4 mb-2 rounded-xl bg-white/5 px-3 py-2 text-center text-[11px] text-white/70"
-          style={{ marginBottom: 'calc(env(safe-area-inset-bottom, 0px) + 76px)' }}
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-6 animate-fade-in"
+          onClick={() => setZipNoticeOpen(false)}
         >
-          Con más de {SHARE_THRESHOLD} fotos se descargan como un ZIP en Archivos.
+          <div
+            className="w-full max-w-xs rounded-3xl bg-rollo-bg p-6 text-center shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-display text-xl leading-tight">
+              Más de {SHARE_THRESHOLD} momentos
+            </h3>
+            <p className="mt-3 text-sm text-white/70">
+              Como seleccionaste más de {SHARE_THRESHOLD} fotos, se descargarán
+              juntas como un <span className="font-medium text-white">ZIP en Archivos</span> en
+              lugar de guardarse una por una en Fotos.
+            </p>
+            <button
+              type="button"
+              onClick={() => setZipNoticeOpen(false)}
+              className="mt-5 w-full rounded-full bg-white py-3 text-sm font-semibold text-black transition active:scale-95"
+            >
+              Entendido
+            </button>
+          </div>
         </div>
       )}
 
